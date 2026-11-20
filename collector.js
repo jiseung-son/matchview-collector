@@ -296,8 +296,8 @@ async function fetchKbo(cli, comp, ctx) {
   const now = kstNow(ctx.now); const y = now.getUTCFullYear(); const mo = now.getUTCMonth() + 1;
   const offseason = mo >= 11 || mo <= 2; // 정규시즌 3~10월(포스트시즌 ~11월 초)
   let events = [];
-  const months = offseason ? [] : [mo - 1, mo, mo + 1].filter(m => m >= 3 && m <= 11);
-  if (!ctx.prevState?.lastFull && !offseason) for (let m = 3; m < mo - 1; m++) months.unshift(m);
+  const months = offseason || ctx.rosterOnly ? [] : [mo - 1, mo, mo + 1].filter(m => m >= 3 && m <= 11);
+  if (!ctx.prevState?.lastFull && !offseason && !ctx.rosterOnly) for (let m = 3; m < mo - 1; m++) months.unshift(m);
   for (const m of [...new Set(months)].sort((a, b) => a - b)) {
     const t = await cli.json('https://www.koreabaseball.com/ws/Schedule.asmx/GetScheduleList', { method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', Referer: 'https://www.koreabaseball.com/Schedule/Schedule.aspx', 'X-Requested-With': 'XMLHttpRequest' },
@@ -335,7 +335,7 @@ async function fetchKleague(cli, comp, ctx) {
   const now = kstNow(ctx.now); const y = now.getUTCFullYear(); const mo = now.getUTCMonth() + 1;
   const offseason = mo === 1 || (mo === 12 && now.getUTCDate() > 10);
   const months = [];
-  if (!offseason) { for (let m = ctx.prevState?.lastFull ? Math.max(2, mo - 1) : 2; m <= Math.min(12, mo + 2); m++) months.push(m); }
+  if (!offseason && !ctx.rosterOnly) { for (let m = ctx.prevState?.lastFull ? Math.max(2, mo - 1) : 2; m <= Math.min(12, mo + 2); m++) months.push(m); }
   let events = [];
   for (const m of months) {
     const j = await cli.json('https://www.kleague.com/getScheduleList.do', { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -374,7 +374,7 @@ async function fetchKbl(cli, comp, ctx) {
   const now = ctx.now; const mo = kstNow(now).getUTCMonth() + 1;
   const offseason = mo >= 5 && mo <= 9;
   let events = [];
-  if (!offseason) {
+  if (!offseason && !ctx.rosterOnly) {
     const from = addDays(now, ctx.prevState?.lastFull ? -14 : -120), to = addDays(now, 150);
     for (const [y, m] of monthsBetween(from, to)) {
       if (m >= 5 && m <= 9) continue;
@@ -421,7 +421,7 @@ async function fetchWkbl(cli, comp, ctx) {
   const now = ctx.now; const mo = kstNow(now).getUTCMonth() + 1;
   const offseason = mo >= 5 && mo <= 9;
   let events = [];
-  if (!offseason) {
+  if (!offseason && !ctx.rosterOnly) {
     const from = addDays(now, ctx.prevState?.lastFull ? -14 : -120), to = addDays(now, 150);
     for (const [y, m] of monthsBetween(from, to)) {
       if (m >= 5 && m <= 9) continue;
@@ -515,7 +515,7 @@ async function enrichFromNaver(cli, comp, events, from, to) {
 /* ───────── LoL (esports-api.lolesports.com) ───────── */
 const LOL = 'https://esports-api.lolesports.com/persisted/gw';
 const LOL_H = { 'x-api-key': '0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z' };
-const LOL_COLORS = { T1: '#E2012D', GEN: '#AA8B56', HLE: '#F37321', KT: '#FF0A07', DK: '#1AB5B5', NS: '#DE2027', BFX: '#F5D000', DRX: '#5A8DFF', KRX: '#5A8DFF', BRO: '#00A651', FOX: '#E8432E', DNF: '#4C6EF5' };
+const LOL_COLORS = { T1: '#E2012D', GEN: '#AA8B56', HLE: '#F37321', KT: '#FF0A07', DK: '#1AB5B5', NS: '#DE2027', BFX: '#F5D000', DRX: '#5A8DFF', KRX: '#E3002B', DNS: '#2E6BF0', BRO: '#00A651', FOX: '#E8432E', DNF: '#4C6EF5' };
 async function lolLeagueIds(cli, ctx) {
   if (ctx.cache.lolLeagues && ctx.now.getTime() - ctx.cache.lolLeagues.t < 7 * 86400e3) return ctx.cache.lolLeagues.ids;
   const j = await cli.json(`${LOL}/getLeagues?hl=ko-KR`, { headers: LOL_H });
@@ -579,6 +579,45 @@ function lolStandings(events) {
   return standingsOf(rows, lastYear, '전체');
 }
 
+/* ───────── 팀 목록 (첫 실행 때 팀 고르기용, 가볍게) ───────── */
+async function rosterOne(cli, comp, ctx) {
+  const T = (id, name, short, color, color2) => ({ id, name, short: short || '', color: color || null, color2: color2 || null });
+  if (comp.src === 'espn') {
+    const j = await cli.json(`${ESPN}/${comp.path}/teams?limit=200`);
+    const list = (((j.sports || [])[0] || {}).leagues || [])[0] || {};
+    const out = (list.teams || []).map(x => x.team || x).filter(t => t && t.id && !JUNK.test(t.displayName || ''))
+      .map(t => T(espnTeamId(comp, t), t.displayName || t.name, t.abbreviation, t.color ? '#' + t.color : null, t.alternateColor ? '#' + t.alternateColor : null));
+    // ESPN 팀 목록에는 하부·해체 팀이 섞일 수 있어 순위표에 있는 팀으로 좁힌다(순위표가 있으면)
+    try {
+      const st = parseEspnStandings(comp, await cli.json(`${ESPN_ST}/${comp.path}/standings`));
+      const ids = new Set(st.groups.flatMap(g => g.rows.map(r => r.team_id)));
+      if (ids.size >= 4) return out.filter(t => ids.has(t.id));
+    } catch (e) { /* 순위표 없으면 전체 */ }
+    return out;
+  }
+  if (comp.src === 'lol') {
+    const r = await fetchLol(cli, comp, Object.assign({}, ctx, { prevState: null }));
+    const last = r.events.map(e => Date.parse(e.start)).sort((a, b) => b - a)[0] || 0;
+    const m = new Map();
+    for (const e of r.events) if (Date.parse(e.start) > last - 200 * 86400e3) for (const t of [e.home, e.away]) m.set(t.id, T(t.id, t.name, t.short, t.color));
+    return [...m.values()];
+  }
+  const r = await FETCHERS[comp.src](cli, comp, Object.assign({}, ctx, { prevState: { lastFull: 1 }, rosterOnly: true }));
+  const m = new Map();
+  for (const g of (r.standings || {}).groups || []) for (const x of g.rows) m.set(x.team_id, T(x.team_id, x.name, x.name));
+  if (!m.size) for (const e of r.events) for (const t of [e.home, e.away]) m.set(t.id, T(t.id, t.name, t.short));
+  return [...m.values()];
+}
+async function roster(opts) {
+  const cli = makeClient(opts.http, 0); const ctx = { now: opts.now || new Date(), cache: {} };
+  const out = {};
+  await Promise.all((opts.comps || []).map(async id => {
+    const comp = BY_ID[id]; if (!comp || comp.kind !== 'league') return;
+    try { out[id] = { ok: true, teams: await rosterOne(cli, comp, ctx) }; } catch (e) { out[id] = { ok: false, error: String(e && e.message || e), teams: [] }; }
+  }));
+  return out;
+}
+
 /* ───────── 실행 ───────── */
 const FETCHERS = { espn: fetchEspn, kbo: fetchKbo, kleague: fetchKleague, kbl: fetchKbl, wkbl: fetchWkbl, kovo: fetchKovo, lol: fetchLol };
 
@@ -637,7 +676,7 @@ async function collect(opts) {
   return out;
 }
 
-const API = { VERSION, COMPETITIONS, BY_ID, collect, ROUND_KO,
+const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, ROUND_KO,
   _test: { parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
     wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;

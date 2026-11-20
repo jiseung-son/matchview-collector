@@ -163,3 +163,14 @@ test('collect(): 한 대회 실패해도 나머지는 계속', async () => {
   assert.strictEqual(out.comps.kbo.ok, false);
   assert.ok('mlb' in out.comps);
 });
+
+test('roster(): ESPN 팀 목록 + 순위표로 좁히기, 국내는 순위표에서', async () => {
+  const http = fakeHttp([
+    [/eng\.1\/teams/, () => JSON.stringify({ sports: [{ leagues: [{ teams: [{ team: { id: '359', displayName: 'Arsenal', abbreviation: 'ARS', color: 'e20520', alternateColor: 'ffffff' } }, { team: { id: '1', displayName: 'Old FC' } }] }] }] })],
+    [/eng\.1\/standings/, () => JSON.stringify({ children: [{ standings: { entries: ['359', '2', '3', '4'].map(id => ({ team: { id, displayName: 'T' + id }, stats: [] })) } }] })],
+    [/koreabaseball\.com\/Record/, () => FX('kbo_rank.html')],
+  ]);
+  const r = await C.roster({ http, comps: ['epl', 'kbo'], now: NOW });
+  assert.deepStrictEqual(r.epl.teams.map(t => [t.id, t.color, t.color2]), [['soccer:359', '#e20520', '#ffffff']]);
+  assert.strictEqual(r.kbo.teams.length, 10);
+});

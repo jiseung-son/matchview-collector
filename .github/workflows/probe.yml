@@ -1,0 +1,12 @@
+name: probe
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/probe.yml", "tools/probe.py"]
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/probe.py
+      - run: tar czf o.tgz o && echo "BEGIN_B64" && base64 -w0 o.tgz && echo && echo "END_B64"

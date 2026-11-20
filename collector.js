@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.1.0';
+const VERSION = '2.1.1';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -94,28 +94,29 @@ const kstNow = now => new Date(now.getTime() + KST_OFFSET); // getUTC* 로 KST �
 const JUNK = /all[- ]?stars?|^tbd\b|^team |^(afc|nfc|world|rising stars)$|^usa$/i;
 
 
-/* ───────── 구단 대표색 (공식 브랜드·홈 유니폼 기준, [주색, 보조색]) ─────────
+/* ───────── 구단 대표색 (공식 브랜드·홈 유니폼 기준, [주색, 보조색, 무늬]) ─────────
+ * 무늬: stripes 세로 줄무늬 · hoops 가로 줄무늬 · halves 반반 · band 가운데 띠 · sash 대각선 띠 · pin 흰 바탕 핀스트라이프(주색 선)
  * ESPN이 주는 색은 원정·서드 유니폼 색이 섞여 있어 직접 정리했다. 이름 일부로 찾는다(가장 긴 것 우선). */
 const BRAND = {
   soccer: {
-    arsenal: ['#EF0107', '#FFFFFF'], astonvilla: ['#670E36', '#95BFE5'], bournemouth: ['#DA291C', '#000000'], brentford: ['#E30613', '#FFFFFF'],
-    brighton: ['#0057B8', '#FFFFFF'], burnley: ['#6C1D45', '#99D6EA'], chelsea: ['#034694', '#FFFFFF'], crystalpalace: ['#1B458F', '#C4122E'],
+    arsenal: ['#EF0107', '#FFFFFF'], astonvilla: ['#670E36', '#95BFE5'], bournemouth: ['#DA291C', '#000000', 'stripes'], brentford: ['#E30613', '#FFFFFF', 'stripes'],
+    brighton: ['#0057B8', '#FFFFFF'], burnley: ['#6C1D45', '#99D6EA'], chelsea: ['#034694', '#FFFFFF'], crystalpalace: ['#1B458F', '#C4122E', 'stripes'],
     everton: ['#003399', '#FFFFFF'], fulham: ['#FFFFFF', '#000000'], leeds: ['#FFFFFF', '#1D428A'], liverpool: ['#C8102E', '#F6EB61'],
-    manchestercity: ['#6CABDD', '#1C2C5B'], manchesterunited: ['#DA291C', '#FBE122'], newcastle: ['#241F20', '#FFFFFF'], nottingham: ['#DD0000', '#FFFFFF'],
-    sunderland: ['#EB172B', '#FFFFFF'], tottenham: ['#132257', '#FFFFFF'], westham: ['#7A263A', '#1BB1E7'], wolverhampton: ['#FDB913', '#231F20'],
-    ipswich: ['#0044A9', '#FFFFFF'], leicester: ['#003090', '#FDBE11'], southampton: ['#D71920', '#FFFFFF'],
-    alaves: ['#0761AF', '#FFFFFF'], athletic: ['#EE2523', '#FFFFFF'], atleticomadrid: ['#CB3524', '#262F61'], barcelona: ['#A50044', '#004D98'],
-    celta: ['#8AC3EE', '#E5254E'], elche: ['#05642C', '#FFFFFF'], espanyol: ['#007FC8', '#FFFFFF'], getafe: ['#005999', '#FFFFFF'],
-    girona: ['#CD2534', '#FFFFFF'], levante: ['#B4053F', '#005093'], mallorca: ['#E20613', '#000000'], osasuna: ['#D91A21', '#0A346F'],
-    rayovallecano: ['#E53027', '#FFFFFF'], betis: ['#00954C', '#FFFFFF'], realmadrid: ['#FFFFFF', '#FEBE10'], oviedo: ['#0047AB', '#FFFFFF'],
-    realsociedad: ['#0067B1', '#FFFFFF'], sevilla: ['#D81920', '#FFFFFF'], valencia: ['#FFFFFF', '#EE7F00'], villarreal: ['#FFE667', '#005187'],
-    leganes: ['#0A4FA1', '#FFFFFF'], laspalmas: ['#FFE400', '#0055A5'], valladolid: ['#921B88', '#FFFFFF'],
-    atalanta: ['#1E71B8', '#000000'], bologna: ['#A21C26', '#1A2F48'], cagliari: ['#A71930', '#002350'], como: ['#003DA5', '#FFFFFF'],
-    cremonese: ['#C8102E', '#A7A9AC'], fiorentina: ['#482E92', '#FFFFFF'], genoa: ['#C8102E', '#002855'], verona: ['#002F6C', '#FFD200'],
-    internazionale: ['#0068A8', '#000000'], intermilan: ['#0068A8', '#000000'], juventus: ['#000000', '#FFFFFF'], lazio: ['#87D8F7', '#FFFFFF'],
-    lecce: ['#FFD700', '#D7182A'], acmilan: ['#FB090B', '#000000'], napoli: ['#12A0D7', '#FFFFFF'], parma: ['#FFD200', '#005BAC'],
+    manchestercity: ['#6CABDD', '#1C2C5B'], manchesterunited: ['#DA291C', '#FBE122'], newcastle: ['#241F20', '#FFFFFF', 'stripes'], nottingham: ['#DD0000', '#FFFFFF'],
+    sunderland: ['#EB172B', '#FFFFFF', 'stripes'], tottenham: ['#132257', '#FFFFFF'], westham: ['#7A263A', '#1BB1E7'], wolverhampton: ['#FDB913', '#231F20'],
+    ipswich: ['#0044A9', '#FFFFFF'], leicester: ['#003090', '#FDBE11'], southampton: ['#D71920', '#FFFFFF', 'stripes'],
+    alaves: ['#0761AF', '#FFFFFF'], athletic: ['#EE2523', '#FFFFFF', 'stripes'], atleticomadrid: ['#CB3524', '#FFFFFF', 'stripes'], barcelona: ['#A50044', '#004D98', 'stripes'],
+    celta: ['#8AC3EE', '#E5254E'], elche: ['#05642C', '#FFFFFF'], espanyol: ['#007FC8', '#FFFFFF', 'stripes'], getafe: ['#005999', '#FFFFFF'],
+    girona: ['#CD2534', '#FFFFFF', 'stripes'], levante: ['#B4053F', '#005093'], mallorca: ['#E20613', '#000000'], osasuna: ['#D91A21', '#0A346F'],
+    rayovallecano: ['#FFFFFF', '#E53027', 'sash'], betis: ['#00954C', '#FFFFFF'], realmadrid: ['#FFFFFF', '#FEBE10'], oviedo: ['#0047AB', '#FFFFFF'],
+    realsociedad: ['#0067B1', '#FFFFFF', 'stripes'], sevilla: ['#D81920', '#FFFFFF'], valencia: ['#FFFFFF', '#EE7F00'], villarreal: ['#FFE667', '#005187'],
+    leganes: ['#0A4FA1', '#FFFFFF', 'stripes'], laspalmas: ['#FFE400', '#0055A5'], valladolid: ['#921B88', '#FFFFFF'],
+    atalanta: ['#1E71B8', '#000000', 'stripes'], bologna: ['#A21C26', '#1A2F48', 'stripes'], cagliari: ['#A71930', '#002350', 'halves'], como: ['#003DA5', '#FFFFFF'],
+    cremonese: ['#C8102E', '#A7A9AC'], fiorentina: ['#482E92', '#FFFFFF'], genoa: ['#C8102E', '#002855', 'halves'], verona: ['#002F6C', '#FFD200'],
+    internazionale: ['#0068A8', '#000000', 'stripes'], intermilan: ['#0068A8', '#000000', 'stripes'], juventus: ['#000000', '#FFFFFF', 'stripes'], lazio: ['#87D8F7', '#FFFFFF'],
+    lecce: ['#FFD700', '#D7182A'], acmilan: ['#FB090B', '#000000', 'stripes'], napoli: ['#12A0D7', '#FFFFFF'], parma: ['#FFD200', '#005BAC'],
     pisa: ['#1F4FA0', '#000000'], roma: ['#8E1F2F', '#F0BC42'], sassuolo: ['#00A752', '#000000'], torino: ['#8A1E03', '#FFFFFF'],
-    udinese: ['#000000', '#FFFFFF'], empoli: ['#00579C', '#FFFFFF'], monza: ['#E4002B', '#FFFFFF'], venezia: ['#F37021', '#00843D'],
+    udinese: ['#000000', '#FFFFFF', 'stripes'], empoli: ['#00579C', '#FFFFFF'], monza: ['#E4002B', '#FFFFFF'], venezia: ['#F37021', '#00843D'],
     augsburg: ['#BA3733', '#46714D'], unionberlin: ['#EB1923', '#FFFFFF'], werderbremen: ['#1D9053', '#FFFFFF'], dortmund: ['#FDE100', '#000000'],
     eintrachtfrankfurt: ['#E1000F', '#000000'], freiburg: ['#E2001A', '#000000'], hamburg: ['#0A3F86', '#FFFFFF'], heidenheim: ['#E30613', '#003B79'],
     hoffenheim: ['#1961B5', '#FFFFFF'], koln: ['#ED1C24', '#FFFFFF'], cologne: ['#ED1C24', '#FFFFFF'], leipzig: ['#DD0741', '#FFFFFF'],
@@ -125,11 +126,11 @@ const BRAND = {
     angers: ['#000000', '#FFFFFF'], auxerre: ['#0055A4', '#FFFFFF'], brest: ['#E30613', '#FFFFFF'], lehavre: ['#68A4DC', '#002C5F'],
     lens: ['#FFD700', '#EC1C24'], lille: ['#E01E13', '#24216A'], lorient: ['#F58220', '#000000'], lyon: ['#DA0812', '#1B3C8D'],
     marseille: ['#2FAEE0', '#FFFFFF'], metz: ['#8D1931', '#FFFFFF'], monaco: ['#E7192F', '#FFFFFF'], nantes: ['#FCDD09', '#00843D'],
-    nice: ['#C8102E', '#000000'], parisfc: ['#1A2A5A', '#FFFFFF'], parissaintgermain: ['#004170', '#DA291C'], rennes: ['#E13327', '#000000'],
+    nice: ['#C8102E', '#000000'], parisfc: ['#1A2A5A', '#FFFFFF'], parissaintgermain: ['#004170', '#DA291C', 'band'], rennes: ['#E13327', '#000000'],
     strasbourg: ['#009FE3', '#FFFFFF'], toulouse: ['#6A2C8E', '#FFFFFF'], montpellier: ['#F48C12', '#002B5C'], reims: ['#EE1C25', '#FFFFFF'], saintetienne: ['#00A650', '#FFFFFF'],
-    benfica: ['#E83030', '#FFFFFF'], porto: ['#003893', '#FFFFFF'], sportingcp: ['#00785A', '#FFFFFF'], ajax: ['#D2122E', '#FFFFFF'], psv: ['#ED1C24', '#FFFFFF'],
-    feyenoord: ['#E30613', '#FFFFFF'], clubbrugge: ['#0077C8', '#000000'], celtic: ['#018749', '#FFFFFF'], rangers: ['#1B458F', '#FFFFFF'],
-    galatasaray: ['#A90432', '#FDB912'], fenerbahce: ['#002D72', '#FFED00'], olympiacos: ['#E2001A', '#FFFFFF'], shakhtar: ['#FF6600', '#000000'], salzburg: ['#D50032', '#FFFFFF'],
+    benfica: ['#E83030', '#FFFFFF'], porto: ['#003893', '#FFFFFF', 'stripes'], sportingcp: ['#00785A', '#FFFFFF', 'hoops'], ajax: ['#FFFFFF', '#D2122E', 'band'], psv: ['#ED1C24', '#FFFFFF'],
+    feyenoord: ['#E30613', '#FFFFFF', 'halves'], clubbrugge: ['#0077C8', '#000000', 'stripes'], celtic: ['#018749', '#FFFFFF', 'hoops'], rangers: ['#1B458F', '#FFFFFF'],
+    galatasaray: ['#A90432', '#FDB912', 'halves'], fenerbahce: ['#002D72', '#FFED00', 'stripes'], olympiacos: ['#E2001A', '#FFFFFF', 'stripes'], shakhtar: ['#FF6600', '#000000'], salzburg: ['#D50032', '#FFFFFF'],
     atlantaunited: ['#80000A', '#A19060'], austin: ['#00B140', '#000000'], charlotte: ['#1A85C8', '#000000'], chicagofire: ['#C8102E', '#141946'],
     cincinnati: ['#F05323', '#263B80'], colorado: ['#862633', '#8BB8E8'], columbus: ['#FEDD00', '#000000'], dcunited: ['#000000', '#EF3E42'],
     fcdallas: ['#E81F3E', '#2A4076'], houston: ['#FF6B00', '#101820'], intermiami: ['#F7B5CD', '#231F20'], lagalaxy: ['#00245D', '#FFD200'],
@@ -158,10 +159,10 @@ const BRAND = {
   },
   baseball: {
     diamondbacks: ['#A71930', '#E3D4AD'], athletics: ['#003831', '#EFB21E'], braves: ['#CE1141', '#13274F'], orioles: ['#DF4601', '#000000'], redsox: ['#BD3039', '#0C2340'],
-    cubs: ['#0E3386', '#CC3433'], whitesox: ['#27251F', '#C4CED4'], reds: ['#C6011F', '#000000'], guardians: ['#00385D', '#E50022'], rockies: ['#33006F', '#C4CED4'],
+    cubs: ['#0E3386', '#CC3433', 'pin'], whitesox: ['#27251F', '#C4CED4', 'pin'], reds: ['#C6011F', '#000000'], guardians: ['#00385D', '#E50022'], rockies: ['#33006F', '#C4CED4'],
     tigers: ['#0C2340', '#FA4616'], astros: ['#002D62', '#EB6E1F'], royals: ['#004687', '#BD9B60'], angels: ['#BA0021', '#003263'], dodgers: ['#005A9C', '#EF3E42'],
-    marlins: ['#00A3E0', '#EF3340'], brewers: ['#12284B', '#FFC52F'], twins: ['#002B5C', '#D31145'], mets: ['#002D72', '#FF5910'], yankees: ['#0C2340', '#C4CED4'],
-    phillies: ['#E81828', '#002D72'], pirates: ['#FDB827', '#27251F'], padres: ['#FFC425', '#2F241D'], giants: ['#FD5A1E', '#27251F'], mariners: ['#0C2C56', '#005C5C'],
+    marlins: ['#00A3E0', '#EF3340'], brewers: ['#12284B', '#FFC52F'], twins: ['#002B5C', '#D31145', 'pin'], mets: ['#002D72', '#FF5910', 'pin'], yankees: ['#0C2340', '#C4CED4', 'pin'],
+    phillies: ['#E81828', '#002D72', 'pin'], pirates: ['#FDB827', '#27251F'], padres: ['#FFC425', '#2F241D'], giants: ['#FD5A1E', '#27251F'], mariners: ['#0C2C56', '#005C5C'],
     cardinals: ['#C41E3A', '#0C2340'], rays: ['#092C5C', '#8FBCE6'], rangers: ['#003278', '#C0111F'], bluejays: ['#134A8E', '#1D2D5C'], nationals: ['#AB0003', '#14225A'],
   },
   racing: {
@@ -257,7 +258,7 @@ function parseEspnEvent(comp, e) {
   const [status, statusText] = espnStatus(e);
   const T = x => { const t = tn(x); const o = team(espnTeamId(comp, t), t.displayName || t.name, { short: t.abbreviation || t.shortDisplayName || '' });
     const b = brand(comp, t.displayName || t.name);
-    if (b) { o.color = b[0]; o.color2 = b[1]; o.brand = true; }
+    if (b) { o.color = b[0]; o.color2 = b[1]; o.brand = true; if (b[2]) o.pattern = b[2]; }
     else { if (t.color) o.color = '#' + String(t.color).replace('#', '').slice(0, 6); if (t.alternateColor) o.color2 = '#' + String(t.alternateColor).replace('#', '').slice(0, 6); }
     return o; };
   const slug = (e.season || {}).slug;

@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.2.1';
+const VERSION = '2.2.2';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -825,7 +825,7 @@ function espnHeader(d) {
   const st = ((comp0.status || {}).type || {});
   return { home: T('home'), away: T('away'), state: st.state || '', detail: st.shortDetail || st.description || '' };
 }
-function espnStats(d, sport) {
+function espnBoxStats(d, sport) {
   const ko = ST_KO[sport] || {}; const teams = (d.boxscore || {}).teams || [];
   if (teams.length !== 2) return [];
   const flat = t => { const o = {}; for (const s of t.statistics || []) { if (s.stats) for (const x of s.stats) { if (!(x.name in o)) o[x.name] = x.displayValue; } else o[s.name] = s.displayValue; } return o; };
@@ -864,7 +864,7 @@ function soccerDetail(d) {
     lineup[r.homeAway] = { formation: r.formation || '', starters: ro.filter(x => x.starter).map(P), bench: ro.filter(x => !x.starter).map(P) };
   }
   const has = lineup.home && lineup.home.starters.length >= 7;
-  return { kind: 'soccer', ...hd, lineup: has ? lineup : null, timeline: tl, stats: espnStats(d, 'soccer') };
+  return { kind: 'soccer', ...hd, lineup: has ? lineup : null, timeline: tl, stats: espnBoxStats(d, 'soccer') };
 }
 function nbaDetail(d) {
   const hd = espnHeader(d); const lineup = {};
@@ -879,7 +879,7 @@ function nbaDetail(d) {
   const labels = Array.from({ length: n }, (_, i) => i < 4 ? `${i + 1}Q` : `OT${i - 3 > 1 ? i - 3 : ''}`);
   const tl = []; let h = 0, a = 0;
   for (let i = 0; i < n; i++) { h += pnum(hd.home.lines[i]) || 0; a += pnum(hd.away.lines[i]) || 0; tl.push({ t: labels[i], side: null, kind: 'period', text: `${labels[i]} ${hd.home.lines[i] ?? '-'} : ${hd.away.lines[i] ?? '-'}`, sub: `누적 ${h} : ${a}` }); }
-  return { kind: 'basketball', ...hd, lineup: lineup.home && lineup.home.starters.length ? lineup : null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnStats(d, 'basketball') };
+  return { kind: 'basketball', ...hd, lineup: lineup.home && lineup.home.starters.length ? lineup : null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnBoxStats(d, 'basketball') };
 }
 function mlbDetail(d) {
   const hd = espnHeader(d); const ids = { home: hd.home.id, away: hd.away.id }; const lineup = {};
@@ -899,7 +899,7 @@ function mlbDetail(d) {
   const tl = (d.plays || []).filter(p => p.scoringPlay).map(p => ({ t: `${(p.period || {}).number}회${(p.period || {}).type === 'Top' ? '초' : '말'}`, side: sideOf(ids, (p.team || {}).id), kind: 'run', text: p.text || '', sub: `${p.homeScore ?? ''} : ${p.awayScore ?? ''}` }));
   return { kind: 'baseball', ...hd, lineup: lineup.home && lineup.home.starters.length ? lineup : null,
     periods: { labels: Array.from({ length: n }, (_, i) => String(i + 1)), home: hd.home.lines, away: hd.away.lines, extra: { labels: ['R', 'H', 'E'], home: [hd.home.score, hd.home.hits, hd.home.errors], away: [hd.away.score, hd.away.hits, hd.away.errors] } },
-    timeline: tl, stats: espnStats(d, 'baseball') };
+    timeline: tl, stats: espnBoxStats(d, 'baseball') };
 }
 function nflDetail(d) {
   const hd = espnHeader(d); const ids = { home: hd.home.id, away: hd.away.id };
@@ -915,7 +915,7 @@ function nflDetail(d) {
       leaders.push({ side, cat: ko, n: (a.athlete || {}).jersey || '', name: (a.athlete || {}).displayName, line });
     }
   }
-  return { kind: 'football', ...hd, lineup: null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnStats(d, 'football'), leaders };
+  return { kind: 'football', ...hd, lineup: null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnBoxStats(d, 'football'), leaders };
 }
 const NHL_SKIP = new Set(['Blocked', 'End of Game', 'Face Off', 'Giveaway', 'Goal', 'Hit', 'Missed', 'Period End', 'Period Start', 'Shot', 'Stoppage', 'Takeaway', 'Shootout', 'Game End', 'Period Official']);
 function nhlDetail(d) {
@@ -935,7 +935,7 @@ function nhlDetail(d) {
     if (ty === 'Goal' || p.scoringPlay) tl.push({ t, side: sideOf(ids, (p.team || {}).id), kind: 'goal', text: String(p.text || '').replace(/\s*Goal.*$/, '') || '골', sub: (String(p.text || '').match(/assists?: (.*)$/i) || [])[1] ? `도움 ${(String(p.text).match(/assists?: (.*)$/i) || [])[1]}` : '' });
     else if (!NHL_SKIP.has(ty) && p.team) tl.push({ t, side: sideOf(ids, (p.team || {}).id), kind: 'pen', text: `${ty} 페널티`, sub: String(p.text || '').slice(0, 60) });
   }
-  return { kind: 'hockey', ...hd, lineup: null, groups: groups.home ? groups : null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnStats(d, 'hockey') };
+  return { kind: 'hockey', ...hd, lineup: null, groups: groups.home ? groups : null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnBoxStats(d, 'hockey') };
 }
 async function f1Detail(cli, ev) {
   const m = /^f1:(\d{4})-(\d+)-(\w+)$/.exec(ev.id || ''); if (!m) throw new SourceError('F1 경기 번호 형식 오류');

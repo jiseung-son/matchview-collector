@@ -251,3 +251,11 @@ test('detail(): 종목별 라인업·타임라인·기록, F1 그리드·피트�
   assert.ok(r.track && r.track.d.startsWith('M')); assert.strictEqual(r.grid[0].pos, 1); assert.ok(r.timeline.some(e => e.kind === 'pit'));
   assert.strictEqual(await C.detail({ http, comp: 'kbo', event: { id: 'kbo:1' } }), null);
 });
+
+test('ESPN 순위: 승점·경기수·득실 등 기록이 남는다 (이름 겹침 회귀 방지)', () => {
+  const d = { children: [{ standings: { season: 2026, entries: [
+    { team: { id: '359', displayName: 'Arsenal' }, stats: [{ name: 'points', value: 29 }, { name: 'gamesPlayed', value: 12 }, { name: 'wins', value: 9 }, { name: 'ties', value: 2 }, { name: 'losses', value: 1 }, { name: 'pointsFor', value: 25 }, { name: 'pointsAgainst', value: 8 }, { name: 'rank', value: 1 }] },
+  ] } }] };
+  const r = C._test.parseEspnStandings(C.BY_ID.epl, d).groups[0].rows[0];
+  assert.deepStrictEqual([r.rank, r.gp, r.w, r.d, r.l, r.pts, r.gf, r.ga, r.gd], [1, 12, 9, 2, 1, 29, 25, 8, 17]);
+});

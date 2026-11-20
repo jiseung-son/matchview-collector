@@ -4,8 +4,14 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: node tools/probe_summary.js
-      - run: tar czf - o | base64 -w0 > b64.txt && echo BEGIN && cat b64.txt && echo && echo END
+      - run: |
+          mkdir o && cd o
+          J=https://api.jolpi.ca/ergast/f1/2026
+          for r in 19 20; do
+            curl -s -m 30 "$J/$r/results.json" -o r${r}_results.json; sleep 1
+            curl -s -m 30 "$J/$r/qualifying.json" -o r${r}_qualifying.json; sleep 1
+            curl -s -m 30 "$J/$r/sprint.json" -o r${r}_sprint.json; sleep 1
+            curl -s -m 30 "$J/$r/pitstops.json?limit=100" -o r${r}_pitstops.json; sleep 1
+          done
+          ls -la; head -c 300 r20_pitstops.json
+          cd .. && tar czf - o | base64 -w0 > b64.txt && echo BEGIN && cat b64.txt && echo && echo END

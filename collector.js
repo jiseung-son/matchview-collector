@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.1.1';
+const VERSION = '2.2.0';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -773,6 +773,178 @@ async function fetchF1(cli, comp, ctx) {
   return { events, standings, offseason: !sched, season: String(season), full: true, window: events.length ? [events[0].start.slice(0, 10), events[events.length - 1].start.slice(0, 10)] : null };
 }
 
+/* ───────── 경기 상세 (라인업 · 타임라인 · 기록) — 경기 상세를 열 때만 받는다 ───────── */
+// 서킷 모양: bacinger/f1-circuits (MIT License, Copyright (c) 2019-2025 Tomislav Bacinger)를 0~100 크기로 줄인 것
+const CIRCUITS = {"albert_park":{"w":81.6,"h":100.0,"d":"M32.3 73.8L19.3 60.8L19.2 59.9L20.4 56.2L19.8 52.8L18.7 51.2L9.8 42.2L6.9 38.6L4.0 34.3L0.0 26.9L0.3 25.9L0.9 25.6L6.7 24.5L7.6 23.8L8.0 22.1L7.6 12.0L8.5 10.8L16.1 5.4L24.2 2.3L28.4 0.0L33.4 3.1L38.2 3.6L41.1 4.8L44.6 8.1L46.1 11.4L47.9 21.2L47.8 23.3L47.0 25.4L44.0 30.1L42.0 41.5L42.8 47.9L44.7 52.4L48.2 57.1L54.2 62.3L56.6 63.3L62.2 63.4L63.8 63.9L73.2 71.8L75.0 74.0L76.7 77.3L81.6 94.6L81.2 95.3L68.8 100.0L67.1 99.6L65.8 98.6L59.8 88.4L58.8 88.5L54.4 93.1L53.2 93.5L51.3 93.0L32.3 73.8Z","len":5278},"shanghai":{"w":100.0,"h":87.7,"d":"M26.5 78.5L19.0 80.4L16.0 80.5L12.2 78.8L10.5 76.9L9.5 74.6L9.5 72.0L10.0 69.9L11.4 68.2L13.2 67.4L14.9 67.4L16.8 68.5L17.2 70.0L16.2 74.1L17.3 75.7L18.7 76.2L20.9 75.4L21.9 73.7L22.6 71.3L22.5 68.6L19.7 64.5L6.8 49.7L5.3 46.8L0.0 30.5L1.2 29.6L2.7 29.9L5.4 31.9L9.9 37.2L17.3 49.9L19.7 52.5L22.8 54.0L26.4 54.3L29.7 53.4L31.4 52.3L34.2 49.6L38.5 41.0L42.2 38.7L45.2 38.7L47.5 39.9L49.0 41.3L53.2 48.8L54.2 49.1L56.1 48.6L59.5 44.1L59.9 43.2L59.7 41.6L40.5 9.7L38.9 9.6L36.5 12.3L34.7 13.1L33.7 12.9L32.7 12.0L30.6 8.6L30.7 4.6L32.2 1.9L34.7 0.5L39.1 0.1L43.6 1.8L47.1 5.8L99.6 85.3L100.0 87.1L99.4 87.7L98.4 87.6L94.0 84.9L79.9 66.2L78.8 66.1L26.5 78.5Z","len":5451},"suzuka":{"w":100.0,"h":53.4,"d":"M85.4 28.5L99.4 45.7L100.0 48.4L99.0 51.7L97.6 53.2L95.9 53.4L94.2 52.4L88.3 43.9L84.4 43.5L82.5 42.7L79.5 35.7L77.8 34.7L73.1 34.2L71.4 33.2L70.4 31.4L70.3 29.7L71.9 23.9L70.9 21.7L68.8 20.4L64.1 18.8L60.7 19.0L56.0 21.7L50.0 28.9L41.9 29.7L41.3 28.8L40.2 24.1L38.5 14.5L38.7 12.2L40.6 7.6L39.9 6.7L38.6 6.9L34.5 13.6L32.1 15.8L29.9 16.7L24.5 17.0L17.5 14.7L14.2 12.2L11.5 8.5L8.9 2.0L7.8 0.6L6.0 0.0L2.6 0.4L0.7 1.5L0.2 2.3L0.1 4.2L1.2 6.3L5.2 9.8L11.1 13.9L17.7 16.9L42.4 25.5L45.3 25.1L50.0 22.8L60.3 14.0L62.7 15.4L66.6 13.1L70.4 13.3L72.8 14.3L75.4 16.4L85.4 28.5Z","len":5807},"miami":{"w":100.0,"h":39.8,"d":"M49.4 11.1L63.0 19.6L63.2 20.3L62.7 21.6L58.9 24.8L58.6 30.7L57.9 32.2L55.3 34.3L50.3 35.7L45.2 35.4L27.2 25.0L24.0 24.9L21.3 26.0L18.8 27.9L17.1 28.2L14.0 27.2L11.0 24.5L7.8 23.4L4.1 24.3L1.5 26.0L0.4 27.7L0.0 29.4L0.4 31.9L2.0 33.2L6.8 32.8L17.5 35.0L35.5 34.4L49.3 39.0L53.5 39.7L57.7 39.8L62.2 39.0L80.8 32.2L90.0 27.5L93.5 25.3L94.3 24.3L93.4 22.9L90.6 21.0L89.9 18.5L90.2 16.9L91.1 16.0L92.1 15.6L96.7 15.6L98.4 14.2L100.0 11.3L99.9 10.7L98.4 9.9L99.7 4.7L99.0 3.6L13.2 0.0L12.1 0.3L12.3 2.2L17.6 5.9L20.9 6.3L29.5 2.9L32.5 2.6L35.5 3.0L38.3 4.2L49.4 11.1Z","len":5412},"villeneuve":{"w":32.5,"h":100.0,"d":"M27.2 72.4L29.9 85.5L29.3 95.7L31.9 97.2L32.5 98.1L32.1 99.3L30.9 100.0L26.5 99.1L21.9 96.7L16.4 91.8L15.9 90.8L16.4 88.5L16.1 87.5L12.2 82.7L9.3 80.5L8.0 78.1L7.5 75.9L7.3 67.3L6.0 66.7L3.4 66.8L1.8 65.4L1.2 63.8L0.5 60.9L0.0 53.9L0.3 45.6L2.9 33.6L3.8 32.5L6.1 31.8L7.2 30.5L9.6 21.3L10.4 16.9L10.8 10.7L9.2 1.3L9.5 0.1L10.9 0.5L11.5 5.6L19.1 24.4L26.4 59.5L25.1 60.9L25.0 61.8L27.2 72.4Z","len":4361},"monaco":{"w":75.5,"h":100.0,"d":"M49.3 19.5L49.4 17.6L50.5 15.4L61.8 0.3L62.7 0.0L64.6 1.0L65.2 2.0L65.4 4.8L68.3 9.8L69.2 10.4L70.3 9.7L70.4 9.1L67.0 5.0L66.7 3.6L67.1 2.5L73.1 0.4L75.2 0.7L75.2 8.6L73.1 20.1L69.8 26.9L64.0 33.8L59.0 36.8L50.3 40.9L46.5 42.2L35.3 44.5L34.6 46.7L33.7 47.0L32.6 47.2L30.6 46.4L8.6 49.5L7.0 52.1L5.2 57.1L4.9 64.4L8.3 68.3L10.4 79.9L10.0 81.0L8.3 82.0L8.3 83.7L10.1 88.5L12.4 92.3L14.3 94.1L18.0 96.0L18.8 97.8L17.9 98.9L13.1 100.0L11.0 99.9L9.9 99.0L9.5 96.4L5.5 90.6L1.5 77.1L0.5 70.2L0.0 61.5L0.4 56.1L1.9 50.5L1.9 48.2L2.9 47.3L4.6 46.9L13.9 45.7L24.4 42.7L30.2 42.0L39.7 37.8L50.2 35.7L53.7 32.8L54.6 31.4L54.9 28.4L53.3 23.8L49.9 20.7L49.3 19.5Z","len":3337},"catalunya":{"w":81.7,"h":100.0,"d":"M64.3 44.7L33.3 94.2L32.0 95.5L29.6 95.8L25.4 93.6L23.2 93.3L20.9 94.1L14.8 98.7L10.8 100.0L6.5 99.4L3.2 97.1L1.6 95.1L0.3 91.7L0.0 87.5L0.9 83.2L2.4 79.4L14.5 60.6L17.0 59.7L19.9 60.6L21.7 62.3L22.6 64.0L22.9 67.3L22.6 69.9L20.9 73.2L13.3 85.2L13.2 87.6L14.6 89.1L16.9 89.3L30.5 82.9L34.8 78.8L39.9 70.5L39.9 68.6L39.3 67.5L35.2 64.5L33.6 62.3L27.4 47.6L27.3 43.9L28.7 40.9L30.8 38.9L67.5 20.0L69.5 18.6L69.9 17.1L69.2 15.4L67.7 14.1L64.1 13.1L60.7 13.4L53.7 17.8L51.1 17.7L48.9 16.3L47.9 14.3L48.0 11.2L49.5 9.2L59.1 1.2L61.2 0.3L64.0 0.0L66.2 0.7L78.2 8.4L79.9 9.8L81.0 11.6L81.7 14.0L81.4 17.2L64.3 44.7Z","len":4655},"red_bull_ring":{"w":100.0,"h":63.1,"d":"M66.7 56.5L41.5 63.1L27.1 42.0L23.9 36.4L17.1 21.7L14.9 18.1L11.4 13.9L0.3 2.8L0.0 1.3L6.4 0.2L15.2 0.0L46.6 5.1L61.5 5.7L62.8 6.2L63.8 7.9L63.3 9.8L60.7 13.4L58.5 15.3L56.1 16.6L50.1 18.0L34.0 15.8L30.9 16.5L28.6 18.5L27.6 21.3L28.1 25.2L34.3 36.0L37.0 38.1L40.7 38.4L42.6 37.6L47.4 32.4L48.8 31.4L50.6 30.4L55.4 29.0L90.4 28.2L92.0 28.2L94.9 29.7L96.7 32.7L99.8 43.2L100.0 44.2L99.5 45.4L96.6 47.3L92.2 49.4L66.7 56.5Z","len":4318},"silverstone":{"w":59.9,"h":100.0,"d":"M35.6 0.9L48.4 0.1L50.9 1.3L52.8 4.1L55.0 12.5L55.5 16.1L56.3 30.1L58.9 35.5L58.6 37.7L56.8 42.6L56.6 44.5L56.9 45.9L59.4 49.7L59.9 52.2L59.6 53.5L58.5 54.8L52.5 58.9L35.7 89.8L31.3 96.6L29.1 99.1L26.8 100.0L25.6 99.9L22.5 98.4L18.9 92.0L9.3 80.7L8.3 80.3L5.3 82.4L3.4 81.4L1.0 78.0L0.0 74.4L1.3 71.8L17.3 51.0L18.9 49.6L21.3 49.3L29.4 50.2L32.4 49.6L41.9 42.3L43.8 41.6L45.1 42.7L46.9 48.3L48.2 48.8L49.4 47.8L51.2 42.8L51.5 40.2L51.1 38.1L23.4 12.7L20.5 11.5L17.8 12.3L17.0 13.8L16.2 19.1L14.5 20.4L12.2 20.2L10.5 18.2L10.6 16.4L14.7 8.0L19.7 3.4L22.7 2.2L35.6 0.9Z","len":5891},"spa":{"w":61.7,"h":100.0,"d":"M18.6 10.6L13.1 1.0L13.3 0.2L13.8 0.0L20.6 3.2L26.9 7.8L36.8 19.5L41.0 22.6L42.1 24.7L43.1 29.1L50.3 40.9L51.5 43.6L61.7 79.5L61.2 80.9L59.4 82.3L58.8 83.5L59.9 88.8L59.2 91.1L46.2 100.0L44.0 99.3L43.4 98.0L43.6 96.6L44.6 95.5L49.7 92.3L50.5 91.2L50.6 89.7L47.8 81.1L45.5 68.1L43.9 65.9L42.2 65.0L37.0 64.8L34.0 66.1L31.6 69.4L25.7 83.9L24.1 85.1L22.4 85.4L18.9 83.8L16.2 84.0L14.4 85.9L9.2 93.7L8.0 94.2L6.5 93.8L1.5 90.1L0.2 88.1L0.1 85.3L1.5 81.5L3.8 77.9L10.5 71.4L19.9 66.5L23.1 64.0L25.8 59.9L28.9 52.8L29.0 49.3L25.0 39.0L23.9 32.5L23.5 25.5L26.1 25.1L26.5 24.4L18.6 10.6Z","len":7004},"hungaroring":{"w":88.4,"h":100.0,"d":"M22.0 75.3L0.7 58.4L0.1 56.1L0.9 55.0L2.4 54.6L7.5 54.6L12.4 55.8L18.0 58.7L31.5 69.3L34.3 70.1L36.6 69.0L37.9 67.1L37.9 65.4L33.5 57.2L33.3 54.2L45.7 28.5L51.3 20.4L47.8 5.8L48.0 2.9L49.2 1.3L51.0 0.2L53.0 0.0L55.4 0.9L60.6 4.5L69.2 13.8L69.6 15.7L68.2 17.3L68.1 18.5L70.8 29.0L71.8 30.8L73.4 31.9L81.0 33.4L82.8 35.2L83.2 37.7L81.7 48.1L81.8 50.8L82.5 52.9L87.7 61.2L88.3 63.3L88.1 65.8L87.1 67.4L66.9 90.0L65.1 89.7L59.2 83.1L54.2 78.9L51.8 78.1L50.1 78.6L48.7 80.7L49.1 83.3L59.3 91.9L60.1 93.6L60.1 96.0L59.3 97.8L56.3 99.8L53.7 99.8L51.3 98.6L22.0 75.3Z","len":4381},"zandvoort":{"w":100.0,"h":85.2,"d":"M12.2 38.9L27.7 1.9L28.6 0.8L31.4 0.0L32.7 0.3L34.8 2.2L35.3 5.0L30.5 16.5L29.4 20.5L28.8 30.3L26.2 32.8L19.1 35.5L17.8 36.5L17.3 39.4L17.9 40.7L18.9 41.7L20.1 42.2L22.1 42.2L31.6 39.1L36.0 38.3L39.8 38.2L55.8 40.8L61.1 39.5L71.6 33.7L74.1 33.0L79.9 32.7L90.8 33.3L93.2 33.9L95.6 35.1L97.2 36.5L99.3 39.7L100.0 43.8L99.2 47.9L91.1 59.9L87.0 68.9L82.5 69.9L77.4 69.3L71.4 66.8L68.4 64.7L66.5 62.6L66.1 61.3L66.5 59.9L67.6 58.2L69.3 57.2L71.8 56.3L80.0 54.6L83.7 53.2L85.8 51.7L86.6 50.0L86.7 48.1L86.0 46.2L84.3 44.5L82.8 44.0L74.8 43.0L66.7 43.0L58.2 44.1L51.0 45.9L41.6 49.1L31.6 54.0L30.6 53.8L28.6 50.6L27.3 49.8L25.5 49.7L23.8 50.5L22.4 53.1L26.7 78.4L26.4 81.4L25.0 83.6L23.4 84.7L21.6 85.1L12.7 85.1L8.2 84.1L3.8 81.2L1.1 77.2L0.0 72.5L0.2 68.9L0.9 66.3L12.2 38.9Z","len":4259},"monza":{"w":57.9,"h":100.0,"d":"M1.9 63.5L4.3 35.5L4.7 34.9L6.0 34.9L6.4 34.3L5.0 28.3L5.5 20.1L6.6 16.2L8.6 13.1L11.9 10.2L17.7 7.8L38.1 6.1L39.3 4.2L52.4 0.2L54.4 0.1L55.7 0.9L56.9 3.1L57.9 13.8L57.6 15.2L41.4 24.5L18.6 44.7L18.5 48.9L17.8 50.2L15.8 52.1L15.4 53.4L10.7 97.0L9.9 98.7L7.2 100.0L4.4 99.2L1.9 96.8L0.4 93.0L0.0 81.0L1.9 63.5Z","len":5793},"madring":{"w":62.1,"h":100.0,"d":"M39.3 94.5L29.0 96.3L28.4 96.7L28.0 99.4L24.4 100.0L22.7 99.9L20.6 99.0L19.1 97.6L7.0 78.3L4.9 73.9L3.7 69.5L3.4 63.2L3.8 60.2L6.2 54.8L5.1 53.9L5.9 52.1L5.0 48.3L2.8 44.2L1.3 38.7L0.0 36.4L0.0 35.8L2.3 33.6L2.3 32.6L0.2 28.4L0.0 21.6L0.2 19.3L4.0 15.8L4.6 14.5L4.4 12.1L2.4 7.1L2.2 5.5L2.3 3.9L3.0 2.4L4.1 1.1L5.7 0.3L9.4 0.1L13.0 2.6L14.1 4.5L14.3 8.5L13.5 10.6L11.9 13.5L6.3 20.4L3.2 25.4L3.5 26.5L8.6 30.4L11.0 33.0L11.5 41.5L13.1 44.3L14.1 45.4L17.1 46.8L24.6 46.8L27.9 45.3L30.5 48.9L34.2 55.4L36.5 56.3L43.0 55.8L45.1 56.5L47.2 59.2L50.2 75.3L51.1 75.5L53.2 74.3L58.4 73.7L58.9 74.2L61.0 82.1L62.0 88.0L62.1 89.6L61.2 90.6L39.3 94.5Z","len":5474},"baku":{"w":100.0,"h":73.6,"d":"M92.0 18.7L99.3 15.6L100.0 14.4L93.8 0.3L93.0 0.0L77.5 6.1L55.7 16.0L54.8 16.5L54.7 17.5L58.4 27.3L50.8 30.6L45.4 33.9L44.5 35.0L44.9 38.0L30.5 49.1L29.9 49.1L29.4 48.5L26.5 40.2L22.0 39.4L20.5 36.3L14.2 38.4L8.4 41.2L3.1 44.5L0.1 54.2L0.7 66.2L14.1 73.1L16.1 73.5L21.0 64.7L29.1 57.3L30.8 49.9L31.3 49.1L44.0 39.5L92.0 18.7Z","len":6003},"sepang":{"w":100.0,"h":81.9,"d":"M29.3 44.3L3.4 46.4L1.2 45.8L0.4 45.0L0.0 42.8L0.4 41.5L1.4 40.6L2.8 40.2L7.3 41.5L8.3 41.4L9.4 39.5L9.2 38.2L6.3 34.4L4.9 31.1L4.6 27.3L5.1 22.3L5.9 20.0L8.3 16.0L12.3 13.0L26.2 8.3L46.1 0.0L48.0 0.6L52.3 21.3L54.5 25.1L58.5 27.8L62.4 28.3L64.6 28.0L68.4 26.0L71.5 22.7L73.0 21.7L75.4 20.9L79.5 21.1L82.5 22.9L99.9 42.8L100.0 43.7L96.6 51.5L95.8 52.1L78.8 53.3L63.9 55.0L55.8 56.3L55.0 57.0L54.8 58.0L55.4 59.2L61.3 62.4L62.5 63.7L63.9 67.6L62.9 75.1L59.4 81.0L57.2 81.9L55.0 81.1L36.8 66.1L35.5 65.6L32.1 65.9L23.7 69.9L19.7 70.2L16.3 69.5L13.9 68.6L12.4 67.4L10.4 64.7L9.6 61.5L10.4 60.1L12.2 59.3L84.4 46.0L85.4 45.1L86.2 43.4L85.8 41.9L84.5 40.6L82.3 40.2L29.3 44.3Z","len":5543},"marina_bay":{"w":100.0,"h":64.8,"d":"M97.8 24.7L100.0 41.8L99.3 43.7L95.9 48.3L87.7 47.9L76.9 46.6L75.5 45.4L74.7 41.6L44.9 40.0L40.8 39.3L39.0 38.4L28.4 29.2L26.8 29.2L25.6 30.1L24.4 34.0L18.5 63.6L17.6 64.7L16.3 64.8L13.7 61.1L6.9 54.9L6.3 52.8L6.8 49.8L3.3 48.3L0.7 46.2L0.2 45.3L0.0 43.0L13.2 19.5L14.6 18.2L16.0 17.9L18.8 19.8L25.2 26.5L26.3 26.7L32.7 15.1L33.9 14.0L53.6 25.3L56.6 26.4L84.0 28.3L86.3 27.5L87.4 26.8L88.1 25.5L88.0 21.5L87.3 17.8L83.9 7.9L84.2 2.4L85.8 0.1L87.2 0.2L88.7 2.1L91.0 3.5L94.1 3.7L95.4 4.7L97.8 24.7Z","len":4928},"americas":{"w":100.0,"h":57.3,"d":"M20.1 46.8L29.1 54.0L33.5 56.9L34.8 57.3L35.3 56.2L32.4 47.2L32.8 44.0L34.3 41.7L43.4 36.0L44.7 34.5L46.6 30.7L50.4 28.6L51.1 27.6L51.9 23.5L53.8 21.3L56.2 19.9L58.1 19.8L65.1 22.6L67.7 20.8L70.1 18.0L71.8 17.1L74.0 17.7L76.1 20.0L86.5 17.7L99.2 2.5L99.9 0.5L98.8 0.0L81.4 5.3L64.6 9.0L36.2 12.7L35.9 13.4L40.7 19.7L42.3 22.3L42.3 23.2L41.3 23.9L37.7 23.8L37.0 23.1L35.5 19.9L33.3 17.7L30.2 17.5L30.0 18.5L35.1 27.5L35.2 29.0L33.5 33.0L29.2 35.2L25.9 35.1L22.2 33.3L15.8 24.5L14.5 23.9L11.9 24.6L1.0 29.4L0.0 30.6L0.7 31.5L20.1 46.8Z","len":5514},"rodriguez":{"w":100.0,"h":72.2,"d":"M18.3 1.4L74.2 8.7L92.6 11.4L97.4 12.7L97.0 18.6L100.0 20.7L99.0 26.6L97.0 31.2L88.6 45.6L77.8 62.5L77.8 63.7L81.5 66.3L81.3 67.1L75.1 71.9L74.1 72.2L72.6 71.4L72.5 70.1L75.0 49.3L74.4 48.3L69.0 44.4L67.7 41.3L66.2 39.5L64.2 38.4L53.9 36.7L52.9 35.7L51.5 31.5L50.5 30.1L40.1 24.6L13.7 20.4L13.2 19.7L12.3 9.0L11.8 8.2L10.7 8.1L8.2 10.5L0.3 8.5L0.3 6.5L1.5 3.7L2.6 2.3L5.5 0.4L8.3 0.0L18.3 1.4Z","len":4304},"interlagos":{"w":63.2,"h":100.0,"d":"M6.1 71.8L12.3 95.7L14.9 99.6L15.9 100.0L18.0 99.8L22.7 95.5L24.4 95.1L28.4 97.2L32.2 98.5L35.0 98.8L38.5 98.2L40.3 97.5L43.8 95.2L47.1 90.7L50.4 80.3L63.0 31.6L63.1 29.4L62.2 27.8L59.9 26.5L50.6 24.8L46.2 25.6L43.6 27.1L39.5 31.6L22.3 55.2L21.5 56.1L19.2 57.2L14.0 57.1L9.1 54.4L7.5 51.0L5.9 42.8L5.8 39.6L6.2 38.4L7.2 37.6L9.3 37.5L13.1 40.0L15.2 40.5L16.9 40.0L18.1 39.0L19.2 36.9L19.1 34.9L17.7 32.7L13.9 28.9L11.3 25.6L9.5 17.9L9.6 16.7L10.5 15.4L11.6 15.1L13.0 15.5L19.8 23.2L21.5 24.4L25.6 25.5L30.0 24.8L33.0 22.7L33.9 21.5L42.9 7.1L43.1 5.9L42.6 4.5L40.4 3.0L31.3 0.0L22.4 1.6L12.9 5.9L9.2 9.0L7.3 11.5L5.9 15.1L3.8 23.6L0.3 38.9L0.0 43.1L0.5 48.2L6.1 71.8Z","len":4309},"vegas":{"w":60.0,"h":100.0,"d":"M54.9 88.8L58.8 84.2L58.9 83.4L58.0 82.1L55.9 81.5L54.0 81.9L49.4 85.4L47.0 85.7L43.9 84.1L42.1 80.8L41.7 36.9L42.5 35.9L54.3 36.1L55.7 35.8L57.9 33.7L59.6 30.6L60.0 27.9L59.9 27.0L57.7 26.3L57.1 24.7L59.2 20.2L59.0 19.2L58.0 18.5L56.1 18.3L41.7 17.9L36.4 17.1L34.6 16.3L32.7 14.3L28.5 5.0L26.9 3.3L23.5 1.5L17.3 0.1L5.4 23.1L2.0 35.3L0.9 46.9L1.0 61.7L0.0 96.3L2.3 97.1L5.3 99.5L7.1 99.8L38.2 99.9L45.2 98.7L46.9 97.8L54.9 88.8Z","len":6201},"losail":{"w":84.7,"h":100.0,"d":"M14.9 60.5L0.3 33.9L0.2 31.1L1.5 29.1L4.2 28.1L5.6 28.4L16.1 34.7L18.4 35.1L19.9 34.6L21.8 32.2L21.8 21.8L22.8 18.5L38.4 1.1L39.2 0.5L41.7 0.0L43.9 0.9L48.4 5.1L48.9 6.0L49.1 8.3L48.1 10.3L38.4 21.0L38.0 22.6L38.7 23.9L39.4 24.3L41.0 24.2L58.8 17.1L61.3 17.1L62.4 17.7L63.3 18.6L64.1 20.8L64.1 21.8L63.1 23.9L59.7 27.2L57.5 30.7L55.7 36.8L54.5 38.8L52.7 39.8L43.1 42.2L41.6 43.3L41.1 45.1L41.2 46.5L44.1 49.7L46.8 51.8L49.7 53.4L55.6 55.1L58.5 55.4L76.0 53.5L77.3 53.7L80.0 55.4L81.1 56.9L84.4 63.1L84.7 65.1L83.9 67.4L78.7 75.8L77.1 76.8L74.7 77.1L58.2 73.7L55.8 74.1L54.8 74.8L42.6 98.0L40.7 99.8L39.1 100.0L36.9 99.4L35.7 98.4L14.9 60.5Z","len":5380},"yas_marina":{"w":46.9,"h":100.0,"d":"M22.9 56.0L36.8 54.1L38.1 53.3L38.5 51.7L36.1 41.4L35.2 39.7L33.6 38.6L29.7 37.3L27.4 36.0L25.3 33.7L24.7 32.3L24.5 30.0L26.2 23.4L26.5 18.6L24.4 1.8L23.9 0.8L22.2 0.0L21.3 0.3L20.4 1.6L18.7 7.9L6.4 44.6L0.1 65.6L0.9 65.9L3.6 65.6L6.3 73.7L8.6 77.4L12.6 81.4L25.9 91.8L30.2 94.4L42.3 100.0L44.4 99.8L45.4 99.2L46.3 98.2L46.9 96.1L46.3 93.4L44.4 91.5L42.2 90.9L30.5 89.8L23.7 85.4L22.2 78.1L27.3 77.0L28.5 76.3L29.0 74.8L29.0 70.8L28.3 69.7L25.1 69.1L14.1 70.7L11.4 70.2L10.5 69.3L6.4 61.9L6.1 59.6L6.6 58.6L22.9 56.0Z","len":5281},"bahrain":{"w":67.5,"h":100.0,"d":"M2.2 47.4L3.0 19.3L3.7 1.0L4.0 0.1L5.6 0.2L10.0 4.5L11.0 4.9L18.7 2.7L21.7 2.6L65.0 11.0L66.5 11.4L67.3 12.2L67.5 13.3L66.8 15.4L64.8 17.5L58.1 22.5L52.9 27.8L49.5 34.4L47.6 35.6L46.0 35.8L41.3 35.0L37.6 35.9L26.6 49.3L25.7 50.1L24.4 50.3L23.5 49.7L23.3 46.4L27.1 22.2L25.9 18.3L21.9 14.9L20.8 14.8L19.0 26.1L17.9 46.0L16.9 71.5L17.1 73.5L17.9 74.7L20.9 75.7L22.7 75.6L24.9 75.1L29.1 72.7L32.1 68.9L35.4 61.1L38.0 58.5L39.7 57.4L42.2 56.8L46.8 57.2L56.1 61.8L58.7 63.9L60.0 66.3L60.0 67.3L59.4 68.5L56.6 70.8L5.5 99.5L3.1 100.0L2.5 99.4L0.2 94.6L0.0 92.7L0.7 69.2L2.2 47.4Z","len":5412},"jeddah":{"w":21.4,"h":100.0,"d":"M15.8 77.0L10.7 62.1L8.7 62.1L8.1 61.2L9.3 56.2L7.7 46.0L5.2 44.4L4.3 42.5L4.4 40.4L5.8 38.0L5.9 36.2L5.4 34.4L3.1 32.1L2.9 31.3L3.1 27.0L4.4 25.7L6.3 24.9L6.7 24.2L8.5 16.7L7.9 1.7L7.4 0.6L6.1 0.0L4.2 0.8L3.5 2.8L3.8 4.7L6.2 9.2L6.3 13.5L4.3 18.1L3.9 21.5L1.7 22.6L0.4 24.0L0.0 27.9L0.2 29.9L3.0 37.1L3.2 43.8L6.3 49.8L7.3 52.9L7.5 57.2L6.7 61.8L9.5 65.4L10.1 68.3L9.9 69.9L6.7 76.3L6.2 78.7L6.3 81.7L8.0 87.7L11.3 93.4L14.3 96.3L19.0 99.6L20.5 99.8L21.4 98.9L21.3 98.3L18.9 86.7L15.8 77.0Z","len":6175},"imola":{"w":100.0,"h":51.7,"d":"M63.4 6.0L61.7 6.0L50.6 3.6L44.4 3.2L32.8 4.2L26.4 6.0L25.3 9.2L19.4 12.4L18.6 13.2L10.2 34.1L10.1 35.3L11.0 38.6L10.7 39.7L0.4 48.7L0.0 49.7L0.5 51.1L2.3 51.7L20.2 49.5L32.6 51.0L34.2 49.8L35.1 48.2L36.7 43.3L36.6 40.0L34.6 30.1L37.5 25.3L38.6 25.0L41.8 26.2L65.0 26.0L65.8 27.5L66.6 27.6L75.8 23.8L80.8 20.5L90.4 11.2L99.9 6.4L99.9 5.0L97.3 0.2L95.5 0.2L81.3 5.5L78.7 6.1L63.4 6.0Z","len":4909},"ricard":{"w":100.0,"h":62.4,"d":"M52.4 35.6L70.4 49.2L71.2 48.8L71.5 44.4L72.8 43.0L74.1 42.5L76.4 42.7L80.3 46.2L84.8 47.8L88.5 47.8L94.2 45.5L95.7 45.9L96.7 47.4L96.6 49.4L92.2 56.1L90.9 59.1L92.3 61.3L95.1 62.4L97.0 62.0L98.5 61.1L100.0 58.1L99.8 45.2L98.6 42.7L96.4 40.6L70.1 30.5L64.5 26.7L62.1 23.9L61.0 24.0L58.7 26.0L57.9 26.0L11.2 8.5L10.0 7.5L7.4 2.5L5.6 0.9L3.2 0.0L1.3 1.0L0.1 5.5L5.2 5.7L6.3 7.1L6.1 9.7L7.0 11.0L16.8 16.0L22.0 19.9L24.0 21.9L27.7 24.0L29.6 24.3L32.1 22.2L34.8 22.2L52.4 35.6Z","len":5842},"portimao":{"w":58.7,"h":100.0,"d":"M9.5 42.0L0.1 9.3L0.4 7.8L10.5 0.3L11.6 0.0L23.5 2.7L24.1 3.3L24.4 4.4L23.6 5.8L16.4 10.3L15.0 13.3L15.2 15.1L27.1 56.9L27.7 58.8L28.5 59.5L30.2 59.0L30.7 58.2L32.3 41.9L31.4 37.1L24.5 23.8L24.4 21.1L25.9 18.4L30.5 12.9L32.0 12.5L34.1 13.4L34.6 14.2L38.3 39.5L39.6 43.1L42.8 45.8L55.2 52.2L57.4 54.9L58.7 59.0L58.5 60.0L57.3 61.3L43.2 65.8L40.7 68.3L39.7 70.1L37.7 82.7L37.8 83.7L39.2 85.3L40.5 85.4L42.0 84.9L50.2 74.9L51.4 74.3L52.7 74.0L54.3 74.4L55.6 75.6L56.5 76.9L57.3 79.8L57.0 82.2L54.8 85.7L46.5 95.7L43.1 98.3L37.9 100.0L35.5 100.0L31.8 99.2L28.1 97.3L24.0 92.4L9.5 42.0Z","len":4653},"istanbul":{"w":100.0,"h":87.8,"d":"M35.2 82.3L51.9 78.3L52.5 77.2L50.7 70.0L50.7 68.4L51.1 66.1L52.5 63.6L54.8 61.4L59.5 58.6L65.5 56.4L71.7 55.2L77.8 55.0L80.9 55.5L83.7 54.6L85.1 53.2L86.1 49.9L85.6 43.8L86.4 43.2L93.7 43.6L95.2 43.2L95.9 42.4L95.3 36.9L93.7 35.1L68.6 22.3L67.0 21.1L66.4 20.0L66.8 17.9L67.5 17.1L69.6 15.9L71.4 15.4L73.0 15.3L80.6 16.7L91.8 19.5L97.8 16.5L100.0 10.8L100.0 9.6L97.6 5.2L93.3 0.7L90.3 0.0L87.8 0.3L55.9 9.8L54.1 10.8L53.4 11.6L53.5 12.8L55.5 16.2L55.5 18.0L45.3 49.5L44.0 51.1L42.1 53.0L0.9 75.3L0.2 76.1L0.2 78.2L1.0 79.3L1.9 79.6L4.7 79.4L5.8 80.3L4.9 86.3L5.1 87.2L5.7 87.8L35.2 82.3Z","len":5338},"nurburgring":{"w":73.5,"h":100.0,"d":"M62.6 15.8L40.7 38.0L33.2 43.4L31.8 43.3L31.7 41.7L32.3 39.6L35.0 33.9L34.6 31.9L33.2 30.3L31.4 29.7L26.5 30.3L22.9 31.4L21.0 32.8L20.9 35.3L21.7 36.1L25.9 36.4L27.2 37.4L27.3 38.2L25.1 52.6L21.0 66.7L21.5 68.4L22.8 69.9L28.8 73.1L29.5 74.3L29.2 76.3L16.6 84.1L10.2 90.6L4.7 98.8L3.0 100.0L1.4 99.7L0.2 98.5L0.3 95.9L13.6 82.6L14.6 80.9L14.9 78.1L14.0 74.5L13.8 71.4L21.6 46.3L20.6 44.0L12.0 40.2L11.0 39.4L10.2 36.3L10.9 34.5L25.7 16.5L27.4 15.2L55.2 7.5L55.3 4.7L59.9 2.5L71.1 0.0L73.0 1.4L73.5 2.9L73.1 5.0L62.6 15.8Z","len":5148},"hockenheimring":{"w":100.0,"h":62.8,"d":"M8.2 46.3L0.1 30.6L0.2 29.4L2.8 23.5L5.7 19.0L23.9 0.1L25.1 0.3L26.4 1.8L27.2 7.3L29.2 9.8L35.1 13.2L43.4 17.2L54.7 20.0L61.7 20.6L70.1 19.6L79.1 16.8L98.4 9.5L99.6 9.5L99.9 9.9L99.5 11.2L75.5 26.7L56.6 24.7L55.8 26.1L55.8 29.5L58.6 35.4L58.4 36.8L57.3 38.7L55.0 40.7L36.2 53.0L33.4 53.3L30.8 52.2L20.1 39.8L18.7 38.9L16.5 39.2L15.5 40.4L15.2 41.9L17.1 47.9L18.4 49.3L22.5 51.5L25.5 55.5L26.0 57.0L25.2 59.0L19.9 62.7L17.3 62.6L15.6 61.2L8.2 46.3Z","len":4574},"mugello":{"w":70.5,"h":100.0,"d":"M34.9 48.4L39.9 37.6L48.8 22.4L56.9 2.7L59.1 0.3L62.1 0.2L63.2 0.9L64.6 3.0L64.6 5.3L63.0 14.5L63.2 16.1L64.3 17.7L69.3 20.8L70.4 23.0L70.5 25.1L69.3 27.6L55.7 48.3L55.5 51.1L57.6 56.3L56.8 59.5L42.2 77.3L40.1 78.3L31.6 78.4L28.0 80.5L26.6 82.8L21.9 95.4L19.1 98.7L16.5 99.8L13.6 99.9L9.7 98.9L2.6 95.0L0.3 91.6L0.0 88.8L4.2 66.6L4.7 65.6L6.4 64.6L13.2 64.1L15.7 62.0L22.8 37.9L23.9 35.6L25.8 34.2L26.9 33.9L29.4 34.2L31.5 36.1L32.2 38.7L32.0 40.0L29.5 44.5L25.1 50.3L24.8 57.1L23.7 59.3L6.0 83.2L5.1 85.2L5.0 87.9L6.1 90.4L8.7 92.2L11.7 92.2L13.3 91.6L16.2 89.1L17.8 86.8L34.9 48.4Z","len":5245}};
+const ST_KO = {
+  soccer: { possessionPct: '점유율', totalShots: '슈팅', shotsOnTarget: '유효 슈팅', wonCorners: '코너킥', foulsCommitted: '파울', offsides: '오프사이드', yellowCards: '경고', redCards: '퇴장', saves: '선방', totalPasses: '패스', accuratePasses: '정확한 패스' },
+  basketball: { fieldGoalPct: '야투 성공률', threePointFieldGoalPct: '3점슛 성공률', freeThrowPct: '자유투 성공률', totalRebounds: '리바운드', assists: '어시스트', steals: '스틸', blocks: '블록', totalTurnovers: '턴오버', pointsInPaint: '페인트존 득점', fastBreakPoints: '속공 득점', fouls: '파울' },
+  football: { totalYards: '전체 전진', netPassingYards: '패스 전진', rushingYards: '러시 전진', firstDowns: '퍼스트다운', thirdDownEff: '3rd 다운 성공', turnovers: '턴오버', totalPenaltiesYards: '반칙-야드', possessionTime: '공격 시간' },
+  hockey: { shotsTotal: '유효 슈팅', hits: '히트', blockedShots: '블록', faceoffPercent: '페이스오프 승률', powerPlayGoals: '파워플레이 골', giveaways: 'giveaway 실수', takeaways: '공 뺏기', penaltyMinutes: '페널티 시간(분)' },
+  baseball: { hits: '안타', homeRuns: '홈런', RBIs: '타점', walks: '볼넷', strikeouts: '삼진', errors: '실책', leftOnBase: '잔루' },
+};
+const pnum = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : null; };
+function sideOf(ids, teamId) { return teamId == null ? null : String(teamId) === String(ids.home) ? 'home' : String(teamId) === String(ids.away) ? 'away' : null; }
+function espnHeader(d) {
+  const comp0 = ((d.header || {}).competitions || [])[0] || {};
+  const cs = comp0.competitors || [];
+  const T = ha => { const c = cs.find(x => x.homeAway === ha) || {}; const t = c.team || {};
+    return { id: t.id, abbr: t.abbreviation || '', name: t.displayName || '', score: c.score ?? null, lines: (c.linescores || []).map(l => l.displayValue), hits: c.hits ?? null, errors: c.errors ?? null }; };
+  const st = ((comp0.status || {}).type || {});
+  return { home: T('home'), away: T('away'), state: st.state || '', detail: st.shortDetail || st.description || '' };
+}
+function espnStats(d, sport) {
+  const ko = ST_KO[sport] || {}; const teams = (d.boxscore || {}).teams || [];
+  if (teams.length !== 2) return [];
+  const flat = t => { const o = {}; for (const s of t.statistics || []) { if (s.stats) for (const x of s.stats) { if (!(x.name in o)) o[x.name] = x.displayValue; } else o[s.name] = s.displayValue; } return o; };
+  const hi = teams.findIndex(t => t.homeAway === 'home'); const H = flat(teams[hi < 0 ? 1 : hi]), A = flat(teams[hi < 0 ? 0 : 1 - hi]);
+  return Object.keys(ko).filter(k => k in H || k in A).map(k => {
+    let h = H[k] ?? '-', a = A[k] ?? '-';
+    if (k === 'possessionPct') { h = `${pnum(h)}%`; a = `${pnum(a)}%`; }
+    if (/Pct|Percent/.test(k) && sport !== 'soccer') { h = `${h}%`; a = `${a}%`; }
+    return { label: ko[k], home: String(h), away: String(a), hv: pnum(h), av: pnum(a) };
+  });
+}
+function soccerDetail(d) {
+  const hd = espnHeader(d); const ids = { home: hd.home.id, away: hd.away.id };
+  const marks = {}; const tl = [];
+  const mk = n => (marks[n] ||= {});
+  for (const k of d.keyEvents || []) {
+    const ty = (k.type || {}).text || ''; const who = k.participants || []; const t = (k.clock || {}).displayValue || '';
+    const side = sideOf(ids, (k.team || {}).id); const nm = i => ((who[i] || {}).athlete || {}).displayName || '';
+    if (ty === 'Halftime') { tl.push({ t, side: null, kind: 'phase', text: '전반 종료' }); continue; }
+    if (/Goal|Penalty - Scored/.test(ty) && !/Disallowed|Missed|Saved/.test(ty)) {
+      const og = /Own Goal/i.test(ty); mk(nm(0)).goals = (mk(nm(0)).goals || 0) + 1;
+      tl.push({ t, side, kind: 'goal', text: `${nm(0)}${/Penalty/.test(ty) ? ' (PK)' : og ? ' (자책)' : ''}`, sub: who[1] ? `도움 ${nm(1)}` : '' });
+    } else if (/Yellow Card|Red Card/.test(ty)) {
+      const red = /Red/.test(ty); mk(nm(0)).card = red ? 'red' : (mk(nm(0)).card === 'yellow' ? 'red' : 'yellow');
+      tl.push({ t, side, kind: red ? 'red' : 'yellow', text: nm(0) });
+    } else if (ty === 'Substitution' && who.length > 1) {
+      mk(nm(0)).subIn = t; mk(nm(1)).subOut = t;
+      tl.push({ t, side, kind: 'sub', text: nm(0), sub: nm(1) });
+    } else if (/Penalty - Missed|Penalty - Saved/.test(ty)) tl.push({ t, side, kind: 'miss', text: `${nm(0)} PK 실축` });
+  }
+  const lineup = {};
+  for (const r of d.rosters || []) {
+    const P = x => { const n = ((x.athlete || {}).displayName) || ''; const m = marks[n] || {};
+      return { n: x.jersey || '', name: (x.athlete || {}).shortName || n, full: n, pos: ((x.position || {}).abbreviation) || '', place: pnum(x.formationPlace) || 0, ...m }; };
+    const ro = r.roster || [];
+    lineup[r.homeAway] = { formation: r.formation || '', starters: ro.filter(x => x.starter).map(P), bench: ro.filter(x => !x.starter).map(P) };
+  }
+  const has = lineup.home && lineup.home.starters.length >= 7;
+  return { kind: 'soccer', ...hd, lineup: has ? lineup : null, timeline: tl, stats: espnStats(d, 'soccer') };
+}
+function nbaDetail(d) {
+  const hd = espnHeader(d); const lineup = {};
+  for (const bp of (d.boxscore || {}).players || []) {
+    const side = String(bp.team.id) === String(hd.home.id) ? 'home' : 'away';
+    const s0 = (bp.statistics || [])[0] || {}; const li = (s0.labels || []).indexOf('PTS'); const lm = (s0.labels || []).indexOf('MIN');
+    const P = a => ({ n: (a.athlete || {}).jersey || '', name: (a.athlete || {}).shortName || (a.athlete || {}).displayName, pos: (((a.athlete || {}).position) || {}).abbreviation || '', pts: li >= 0 && a.stats ? a.stats[li] : null, min: lm >= 0 && a.stats ? a.stats[lm] : null, dnp: !!a.didNotPlay });
+    const all = s0.athletes || [];
+    lineup[side] = { starters: all.filter(a => a.starter).map(P), bench: all.filter(a => !a.starter).map(P) };
+  }
+  const n = Math.max(hd.home.lines.length, hd.away.lines.length);
+  const labels = Array.from({ length: n }, (_, i) => i < 4 ? `${i + 1}Q` : `OT${i - 3 > 1 ? i - 3 : ''}`);
+  const tl = []; let h = 0, a = 0;
+  for (let i = 0; i < n; i++) { h += pnum(hd.home.lines[i]) || 0; a += pnum(hd.away.lines[i]) || 0; tl.push({ t: labels[i], side: null, kind: 'period', text: `${labels[i]} ${hd.home.lines[i] ?? '-'} : ${hd.away.lines[i] ?? '-'}`, sub: `누적 ${h} : ${a}` }); }
+  return { kind: 'basketball', ...hd, lineup: lineup.home && lineup.home.starters.length ? lineup : null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnStats(d, 'basketball') };
+}
+function mlbDetail(d) {
+  const hd = espnHeader(d); const ids = { home: hd.home.id, away: hd.away.id }; const lineup = {};
+  for (const r of d.rosters || []) {
+    const ro = r.roster || []; const seen = new Set();
+    const order = ro.filter(x => x.starter && x.batOrder).sort((a, b) => a.batOrder - b.batOrder).filter(x => !seen.has(x.batOrder) && seen.add(x.batOrder))
+      .map(x => ({ n: x.jersey || '', name: (x.athlete || {}).shortName || (x.athlete || {}).displayName, pos: ((x.position || {}).abbreviation) || '', order: x.batOrder }));
+    const bench = ro.filter(x => !x.starter).map(x => ({ n: x.jersey || '', name: (x.athlete || {}).shortName || (x.athlete || {}).displayName, pos: ((x.position || {}).abbreviation) || '' }));
+    lineup[r.homeAway] = { starters: order, bench };
+  }
+  for (const bp of (d.boxscore || {}).players || []) { // 선발 투수
+    const side = String(bp.team.id) === String(hd.home.id) ? 'home' : 'away';
+    const pit = (bp.statistics || []).find(s => s.type === 'pitching'); const sp = pit && (pit.athletes || []).find(a => a.starter);
+    if (sp && lineup[side]) lineup[side].pitcher = { n: (sp.athlete || {}).jersey || '', name: (sp.athlete || {}).shortName || (sp.athlete || {}).displayName, pos: 'P' };
+  }
+  const n = Math.max(hd.home.lines.length, hd.away.lines.length, 9);
+  const tl = (d.plays || []).filter(p => p.scoringPlay).map(p => ({ t: `${(p.period || {}).number}회${(p.period || {}).type === 'Top' ? '초' : '말'}`, side: sideOf(ids, (p.team || {}).id), kind: 'run', text: p.text || '', sub: `${p.homeScore ?? ''} : ${p.awayScore ?? ''}` }));
+  return { kind: 'baseball', ...hd, lineup: lineup.home && lineup.home.starters.length ? lineup : null,
+    periods: { labels: Array.from({ length: n }, (_, i) => String(i + 1)), home: hd.home.lines, away: hd.away.lines, extra: { labels: ['R', 'H', 'E'], home: [hd.home.score, hd.home.hits, hd.home.errors], away: [hd.away.score, hd.away.hits, hd.away.errors] } },
+    timeline: tl, stats: espnStats(d, 'baseball') };
+}
+function nflDetail(d) {
+  const hd = espnHeader(d); const ids = { home: hd.home.id, away: hd.away.id };
+  const n = Math.max(hd.home.lines.length, hd.away.lines.length);
+  const labels = Array.from({ length: n }, (_, i) => i < 4 ? `${i + 1}Q` : 'OT');
+  const tl = (d.scoringPlays || []).map(p => ({ t: `${labels[((p.period || {}).number || 1) - 1] || ''} ${(p.clock || {}).displayValue || ''}`.trim(), side: sideOf(ids, (p.team || {}).id), kind: 'score', text: `${(p.type || {}).text || ''}`, sub: `${p.text || ''} · ${p.homeScore} : ${p.awayScore}` }));
+  const leaders = [];
+  for (const bp of (d.boxscore || {}).players || []) {
+    const side = String(bp.team.id) === String(hd.home.id) ? 'home' : 'away';
+    for (const [cat, ko, cols] of [['passing', '패스', ['C/ATT', 'YDS', 'TD']], ['rushing', '러시', ['CAR', 'YDS', 'TD']], ['receiving', '리시브', ['REC', 'YDS', 'TD']]]) {
+      const s = (bp.statistics || []).find(x => x.name === cat); const a = s && (s.athletes || [])[0]; if (!a) continue;
+      const line = cols.map(c => { const i = (s.labels || []).indexOf(c); return i >= 0 ? `${c} ${a.stats[i]}` : ''; }).filter(Boolean).join(' · ');
+      leaders.push({ side, cat: ko, n: (a.athlete || {}).jersey || '', name: (a.athlete || {}).displayName, line });
+    }
+  }
+  return { kind: 'football', ...hd, lineup: null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnStats(d, 'football'), leaders };
+}
+const NHL_SKIP = new Set(['Blocked', 'End of Game', 'Face Off', 'Giveaway', 'Goal', 'Hit', 'Missed', 'Period End', 'Period Start', 'Shot', 'Stoppage', 'Takeaway', 'Shootout', 'Game End', 'Period Official']);
+function nhlDetail(d) {
+  const hd = espnHeader(d); const ids = { home: hd.home.id, away: hd.away.id }; const groups = {};
+  for (const bp of (d.boxscore || {}).players || []) {
+    const side = String(bp.team.id) === String(hd.home.id) ? 'home' : 'away';
+    groups[side] = [['goalies', '골리'], ['forwards', '공격수'], ['defenses', '수비수']].map(([k, ko]) => {
+      const s = (bp.statistics || []).find(x => x.name === k);
+      return { label: ko, players: ((s && s.athletes) || []).map(a => ({ n: (a.athlete || {}).jersey || '', name: (a.athlete || {}).displayName, pos: (((a.athlete || {}).position) || {}).abbreviation || '', starter: !!a.starter })) };
+    }).filter(g => g.players.length);
+  }
+  const n = Math.max(hd.home.lines.length, hd.away.lines.length);
+  const labels = Array.from({ length: n }, (_, i) => i < 3 ? `${i + 1}P` : i === 3 ? 'OT' : 'SO');
+  const tl = [];
+  for (const p of d.plays || []) {
+    const ty = (p.type || {}).text || ''; const t = `${labels[((p.period || {}).number || 1) - 1] || ''} ${(p.clock || {}).displayValue || ''}`.trim();
+    if (ty === 'Goal' || p.scoringPlay) tl.push({ t, side: sideOf(ids, (p.team || {}).id), kind: 'goal', text: String(p.text || '').replace(/\s*Goal.*$/, '') || '골', sub: (String(p.text || '').match(/assists?: (.*)$/i) || [])[1] ? `도움 ${(String(p.text).match(/assists?: (.*)$/i) || [])[1]}` : '' });
+    else if (!NHL_SKIP.has(ty) && p.team) tl.push({ t, side: sideOf(ids, (p.team || {}).id), kind: 'pen', text: `${ty} 페널티`, sub: String(p.text || '').slice(0, 60) });
+  }
+  return { kind: 'hockey', ...hd, lineup: null, groups: groups.home ? groups : null, periods: { labels, home: hd.home.lines, away: hd.away.lines }, timeline: tl, stats: espnStats(d, 'hockey') };
+}
+async function f1Detail(cli, ev) {
+  const m = /^f1:(\d{4})-(\d+)-(\w+)$/.exec(ev.id || ''); if (!m) throw new SourceError('F1 경기 번호 형식 오류');
+  const [, season, round, code] = m;
+  const get = async path => { const j = await cli.json(`${F1}/${season}/${round}/${path}`); return ((((j.MRData || {}).RaceTable || {}).Races) || [])[0] || null; };
+  const q = await get('qualifying.json');
+  const race = code === 'r' ? await get('results.json') : code === 's' ? await get('sprint.json') : null;
+  const base = race || q || (await get('results.json'));
+  const circuit = base ? base.Circuit : null;
+  const drv = x => ({ name: F1_DRIVER_KO[(x.Driver || {}).driverId] || `${(x.Driver || {}).givenName || ''} ${(x.Driver || {}).familyName || ''}`.trim(), code: (x.Driver || {}).code || '',
+    team: f1TeamId((x.Constructor || {}).constructorId || ''), teamName: F1_TEAM_KO[(x.Constructor || {}).constructorId] || (x.Constructor || {}).name || '' });
+  const qual = q ? (q.QualifyingResults || []).map(x => ({ pos: toInt(x.position), ...drv(x), q: x.Q3 || x.Q2 || x.Q1 || '' })) : [];
+  const rows = race ? (race.Results || race.SprintResults || []).map(x => ({ pos: toInt(x.position), ...drv(x), grid: toInt(x.grid), pts: toNum(x.points), status: x.status, time: (x.Time || {}).time || '', laps: toInt(x.laps), fl: x.FastestLap })) : [];
+  const grid = rows.length ? rows.filter(r => r.grid > 0).slice().sort((a, b) => a.grid - b.grid).map(r => ({ pos: r.grid, name: r.name, code: r.code, team: r.team, teamName: r.teamName })) : qual.map(r => ({ pos: r.pos, name: r.name, code: r.code, team: r.team, teamName: r.teamName }));
+  const tl = [];
+  if (code === 'r' && race) {
+    let pits = [];
+    try { const p = await get('pitstops.json?limit=100'); pits = (p && p.PitStops) || []; } catch (e) { /* 피트스톱 없음 */ }
+    const byId = Object.fromEntries((race.Results || []).map(x => [(x.Driver || {}).driverId, drv(x)]));
+    for (const p of pits) { const dv = byId[p.driverId] || { name: p.driverId, team: '' }; tl.push({ lap: toInt(p.lap), t: `${p.lap}랩`, kind: 'pit', team: dv.team, text: `${dv.name} 피트스톱`, sub: `${p.stop}번째 · ${p.duration}초` }); }
+    for (const r of rows) if (r.status && !/Finished|Lap/i.test(r.status) && r.laps !== null) tl.push({ lap: r.laps + 1, t: `${r.laps + 1}랩`, kind: 'out', team: r.team, text: `${r.name} ${/Did not start/i.test(r.status) ? '출발 못 함' : '리타이어'}`, sub: r.status });
+    const best = rows.filter(r => r.fl && r.fl.rank === '1')[0];
+    if (best) tl.push({ lap: toInt(best.fl.lap), t: `${best.fl.lap}랩`, kind: 'fast', team: best.team, text: `${best.name} 최고 랩`, sub: (best.fl.Time || {}).time || '' });
+    tl.sort((a, b) => (a.lap || 0) - (b.lap || 0));
+  }
+  const cid = circuit ? circuit.circuitId : '';
+  return { kind: 'f1', session: code, circuit: circuit ? { id: cid, name: circuit.circuitName, place: ((circuit.Location || {}).locality) || '' } : null,
+    track: CIRCUITS[cid] || null, laps: rows.length ? Math.max(...rows.map(r => r.laps || 0)) : null, grid, results: rows, qualifying: qual, timeline: tl };
+}
+const DETAIL_SPORT = { soccer: soccerDetail, basketball: nbaDetail, baseball: mlbDetail, football: nflDetail, hockey: nhlDetail };
+async function detail(opts) {
+  const comp = BY_ID[opts.comp]; if (!comp) throw new SourceError('대회 정보 없음');
+  const cli = makeClient(opts.http, 0);
+  if (comp.src === 'f1') return f1Detail(cli, opts.event);
+  if (comp.src !== 'espn') return null; // 국내 리그 · LoL은 링크로 대신
+  const eid = String(opts.event.id || '').split(':').slice(1).join(':');
+  const d = await cli.json(`${ESPN}/${comp.path}/summary?event=${encodeURIComponent(eid)}`);
+  const fn = DETAIL_SPORT[comp.sport]; if (!fn) return null;
+  return fn(d);
+}
+
 /* ───────── 팀 목록 (첫 실행 때 팀 고르기용, 가볍게) ───────── */
 async function rosterOne(cli, comp, ctx) {
   const T = (id, name, short, color, color2) => ({ id, name, short: short || '', color: color || null, color2: color2 || null });
@@ -876,7 +1048,7 @@ async function collect(opts) {
   return out;
 }
 
-const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, ROUND_KO,
+const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, detail, ROUND_KO,
   _test: { parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
     wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseF1Schedule, parseF1Standings, gpKo, f1Best, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;

@@ -224,3 +224,30 @@ test('collect(): F1 시즌 중 일정·결과 페이지 넘김', async () => {
   assert.strictEqual(ro.f1.teams.length, 11);
   assert.ok(ro.f1.teams.find(t => t.id === 'f1:ferrari').color === '#E8002D');
 });
+
+test('detail(): 종목별 라인업·타임라인·기록, F1 그리드·피트스톱·서킷', async () => {
+  const zlib = require('zlib');
+  const L = f => zlib.gunzipSync(fs.readFileSync(path.join(__dirname, 'fixtures/detail', f + '.json.gz'))).toString();
+  const map = { 'soccer/eng.1': 'soccer_eng.1', 'basketball/nba': 'basketball_nba', 'baseball/mlb': 'baseball_mlb', 'football/nfl': 'football_nfl', 'hockey/nhl': 'hockey_nhl' };
+  const http = async ({ url }) => {
+    for (const [k, v] of Object.entries(map)) if (url.includes(k + '/summary')) return { status: 200, text: L(v) };
+    const m = /2026\/20\/(\w+)\.json/.exec(url); if (m) return { status: 200, text: fs.readFileSync(path.join(__dirname, 'fixtures/detail', `r20_${m[1]}.json`), 'utf8') };
+    return { status: 404, text: '' };
+  };
+  const s = await C.detail({ http, comp: 'epl', event: { id: 'epl:401879244' } });
+  assert.strictEqual(s.lineup.home.formation, '4-2-3-1'); assert.strictEqual(s.lineup.home.starters.length, 11);
+  assert.ok(s.timeline.some(e => e.kind === 'goal' && e.side === 'home'));
+  assert.ok(s.lineup.home.starters.find(p => p.subOut));
+  assert.ok(s.stats.find(x => x.label === '점유율'));
+  const b = await C.detail({ http, comp: 'nba', event: { id: 'nba:1' } });
+  assert.strictEqual(b.lineup.home.starters.length, 5); assert.deepStrictEqual(b.periods.labels, ['1Q', '2Q', '3Q', '4Q']);
+  const m = await C.detail({ http, comp: 'mlb', event: { id: 'mlb:1' } });
+  assert.strictEqual(m.lineup.home.starters.length, 9); assert.ok(m.lineup.away.pitcher); assert.strictEqual(m.periods.extra.labels[0], 'R');
+  const f = await C.detail({ http, comp: 'nfl', event: { id: 'nfl:1' } });
+  assert.strictEqual(f.lineup, null); assert.ok(f.timeline.length > 3 && f.leaders.length >= 4);
+  const h = await C.detail({ http, comp: 'nhl', event: { id: 'nhl:1' } });
+  assert.ok(h.groups.home.find(g => g.label === '골리')); assert.ok(h.timeline.some(e => e.kind === 'goal'));
+  const r = await C.detail({ http, comp: 'f1', event: { id: 'f1:2026-20-r' } });
+  assert.ok(r.track && r.track.d.startsWith('M')); assert.strictEqual(r.grid[0].pos, 1); assert.ok(r.timeline.some(e => e.kind === 'pit'));
+  assert.strictEqual(await C.detail({ http, comp: 'kbo', event: { id: 'kbo:1' } }), null);
+});

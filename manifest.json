@@ -1,6 +1,6 @@
 {
   "api": 2,
-  "collector": "2.0.0",
+  "collector": "2.0.1",
   "broadcast": "2026-11-20",
   "note": "앱은 이 파일을 보고 collector.js·broadcast.json의 새 버전이 있으면 받아 씁니다. 코드를 고치면 collector.js 안의 VERSION과 여기 collector 값을 같이 올리세요."
 }

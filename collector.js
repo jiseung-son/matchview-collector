@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.0.0';
+const VERSION = '2.0.1';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -92,6 +92,96 @@ function monthsBetween(a, b) { // a,b: Date(UTC) → [[y,m],...]
 const kstNow = now => new Date(now.getTime() + KST_OFFSET); // getUTC* 로 KST 날짜를 읽는 용도
 const JUNK = /all[- ]?stars?|^tbd\b|^team |^(afc|nfc|world|rising stars)$|^usa$/i;
 
+
+/* ───────── 구단 대표색 (공식 브랜드·홈 유니폼 기준, [주색, 보조색]) ─────────
+ * ESPN이 주는 색은 원정·서드 유니폼 색이 섞여 있어 직접 정리했다. 이름 일부로 찾는다(가장 긴 것 우선). */
+const BRAND = {
+  soccer: {
+    arsenal: ['#EF0107', '#FFFFFF'], astonvilla: ['#670E36', '#95BFE5'], bournemouth: ['#DA291C', '#000000'], brentford: ['#E30613', '#FFFFFF'],
+    brighton: ['#0057B8', '#FFFFFF'], burnley: ['#6C1D45', '#99D6EA'], chelsea: ['#034694', '#FFFFFF'], crystalpalace: ['#1B458F', '#C4122E'],
+    everton: ['#003399', '#FFFFFF'], fulham: ['#FFFFFF', '#000000'], leeds: ['#FFFFFF', '#1D428A'], liverpool: ['#C8102E', '#F6EB61'],
+    manchestercity: ['#6CABDD', '#1C2C5B'], manchesterunited: ['#DA291C', '#FBE122'], newcastle: ['#241F20', '#FFFFFF'], nottingham: ['#DD0000', '#FFFFFF'],
+    sunderland: ['#EB172B', '#FFFFFF'], tottenham: ['#132257', '#FFFFFF'], westham: ['#7A263A', '#1BB1E7'], wolverhampton: ['#FDB913', '#231F20'],
+    ipswich: ['#0044A9', '#FFFFFF'], leicester: ['#003090', '#FDBE11'], southampton: ['#D71920', '#FFFFFF'],
+    alaves: ['#0761AF', '#FFFFFF'], athletic: ['#EE2523', '#FFFFFF'], atleticomadrid: ['#CB3524', '#262F61'], barcelona: ['#A50044', '#004D98'],
+    celta: ['#8AC3EE', '#E5254E'], elche: ['#05642C', '#FFFFFF'], espanyol: ['#007FC8', '#FFFFFF'], getafe: ['#005999', '#FFFFFF'],
+    girona: ['#CD2534', '#FFFFFF'], levante: ['#B4053F', '#005093'], mallorca: ['#E20613', '#000000'], osasuna: ['#D91A21', '#0A346F'],
+    rayovallecano: ['#E53027', '#FFFFFF'], betis: ['#00954C', '#FFFFFF'], realmadrid: ['#FFFFFF', '#FEBE10'], oviedo: ['#0047AB', '#FFFFFF'],
+    realsociedad: ['#0067B1', '#FFFFFF'], sevilla: ['#D81920', '#FFFFFF'], valencia: ['#FFFFFF', '#EE7F00'], villarreal: ['#FFE667', '#005187'],
+    leganes: ['#0A4FA1', '#FFFFFF'], laspalmas: ['#FFE400', '#0055A5'], valladolid: ['#921B88', '#FFFFFF'],
+    atalanta: ['#1E71B8', '#000000'], bologna: ['#A21C26', '#1A2F48'], cagliari: ['#A71930', '#002350'], como: ['#003DA5', '#FFFFFF'],
+    cremonese: ['#C8102E', '#A7A9AC'], fiorentina: ['#482E92', '#FFFFFF'], genoa: ['#C8102E', '#002855'], verona: ['#002F6C', '#FFD200'],
+    internazionale: ['#0068A8', '#000000'], intermilan: ['#0068A8', '#000000'], juventus: ['#000000', '#FFFFFF'], lazio: ['#87D8F7', '#FFFFFF'],
+    lecce: ['#FFD700', '#D7182A'], acmilan: ['#FB090B', '#000000'], napoli: ['#12A0D7', '#FFFFFF'], parma: ['#FFD200', '#005BAC'],
+    pisa: ['#1F4FA0', '#000000'], roma: ['#8E1F2F', '#F0BC42'], sassuolo: ['#00A752', '#000000'], torino: ['#8A1E03', '#FFFFFF'],
+    udinese: ['#000000', '#FFFFFF'], empoli: ['#00579C', '#FFFFFF'], monza: ['#E4002B', '#FFFFFF'], venezia: ['#F37021', '#00843D'],
+    augsburg: ['#BA3733', '#46714D'], unionberlin: ['#EB1923', '#FFFFFF'], werderbremen: ['#1D9053', '#FFFFFF'], dortmund: ['#FDE100', '#000000'],
+    eintrachtfrankfurt: ['#E1000F', '#000000'], freiburg: ['#E2001A', '#000000'], hamburg: ['#0A3F86', '#FFFFFF'], heidenheim: ['#E30613', '#003B79'],
+    hoffenheim: ['#1961B5', '#FFFFFF'], koln: ['#ED1C24', '#FFFFFF'], cologne: ['#ED1C24', '#FFFFFF'], leipzig: ['#DD0741', '#FFFFFF'],
+    leverkusen: ['#E32221', '#000000'], mainz: ['#ED1C24', '#FFFFFF'], monchengladbach: ['#00A650', '#000000'], gladbach: ['#00A650', '#000000'],
+    bayernmunich: ['#DC052D', '#0066B2'], bayernmunchen: ['#DC052D', '#0066B2'], stpauli: ['#6F4E37', '#FFFFFF'], stuttgart: ['#E32219', '#FFFFFF'],
+    wolfsburg: ['#65B32E', '#FFFFFF'], bochum: ['#005CA9', '#FFFFFF'], holsteinkiel: ['#003B7E', '#FFFFFF'],
+    angers: ['#000000', '#FFFFFF'], auxerre: ['#0055A4', '#FFFFFF'], brest: ['#E30613', '#FFFFFF'], lehavre: ['#68A4DC', '#002C5F'],
+    lens: ['#FFD700', '#EC1C24'], lille: ['#E01E13', '#24216A'], lorient: ['#F58220', '#000000'], lyon: ['#DA0812', '#1B3C8D'],
+    marseille: ['#2FAEE0', '#FFFFFF'], metz: ['#8D1931', '#FFFFFF'], monaco: ['#E7192F', '#FFFFFF'], nantes: ['#FCDD09', '#00843D'],
+    nice: ['#C8102E', '#000000'], parisfc: ['#1A2A5A', '#FFFFFF'], parissaintgermain: ['#004170', '#DA291C'], rennes: ['#E13327', '#000000'],
+    strasbourg: ['#009FE3', '#FFFFFF'], toulouse: ['#6A2C8E', '#FFFFFF'], montpellier: ['#F48C12', '#002B5C'], reims: ['#EE1C25', '#FFFFFF'], saintetienne: ['#00A650', '#FFFFFF'],
+    benfica: ['#E83030', '#FFFFFF'], porto: ['#003893', '#FFFFFF'], sportingcp: ['#00785A', '#FFFFFF'], ajax: ['#D2122E', '#FFFFFF'], psv: ['#ED1C24', '#FFFFFF'],
+    feyenoord: ['#E30613', '#FFFFFF'], clubbrugge: ['#0077C8', '#000000'], celtic: ['#018749', '#FFFFFF'], rangers: ['#1B458F', '#FFFFFF'],
+    galatasaray: ['#A90432', '#FDB912'], fenerbahce: ['#002D72', '#FFED00'], olympiacos: ['#E2001A', '#FFFFFF'], shakhtar: ['#FF6600', '#000000'], salzburg: ['#D50032', '#FFFFFF'],
+    atlantaunited: ['#80000A', '#A19060'], austin: ['#00B140', '#000000'], charlotte: ['#1A85C8', '#000000'], chicagofire: ['#C8102E', '#141946'],
+    cincinnati: ['#F05323', '#263B80'], colorado: ['#862633', '#8BB8E8'], columbus: ['#FEDD00', '#000000'], dcunited: ['#000000', '#EF3E42'],
+    fcdallas: ['#E81F3E', '#2A4076'], houston: ['#FF6B00', '#101820'], intermiami: ['#F7B5CD', '#231F20'], lagalaxy: ['#00245D', '#FFD200'],
+    losangelesfc: ['#C39E6D', '#000000'], lafc: ['#C39E6D', '#000000'], minnesota: ['#8CD2F4', '#231F20'], montreal: ['#0033A1', '#000000'],
+    nashville: ['#ECE83A', '#1F1646'], newengland: ['#0A2240', '#CE0E2D'], newyorkcity: ['#6CACE4', '#041E42'], redbulls: ['#ED1E36', '#23326A'],
+    orlando: ['#633492', '#FDE192'], philadelphiaunion: ['#071B2C', '#B19B69'], portland: ['#004812', '#D69A00'], realsaltlake: ['#B30838', '#013A81'],
+    sanjose: ['#0067B1', '#000000'], seattle: ['#5D9741', '#005595'], sportingkansascity: ['#91B0D5', '#002F65'], stlouis: ['#EC1458', '#001544'],
+    torontofc: ['#B81137', '#455560'], vancouver: ['#00245E', '#9DC2EA'],
+  },
+  basketball: {
+    hawks: ['#E03A3E', '#C1D32F'], celtics: ['#007A33', '#BA9653'], nets: ['#000000', '#FFFFFF'], hornets: ['#00788C', '#1D1160'], bulls: ['#CE1141', '#000000'],
+    cavaliers: ['#860038', '#FDBB30'], mavericks: ['#00538C', '#B8C4CA'], nuggets: ['#0E2240', '#FEC524'], pistons: ['#C8102E', '#1D42BA'], warriors: ['#1D428A', '#FFC72C'],
+    rockets: ['#CE1141', '#000000'], pacers: ['#002D62', '#FDBB30'], clippers: ['#C8102E', '#1D428A'], lakers: ['#552583', '#FDB927'], grizzlies: ['#5D76A9', '#12173F'],
+    heat: ['#98002E', '#F9A01B'], bucks: ['#00471B', '#EEE1C6'], timberwolves: ['#0C2340', '#78BE20'], pelicans: ['#0C2340', '#85714D'], knicks: ['#006BB6', '#F58426'],
+    thunder: ['#007AC1', '#EF3B24'], magic: ['#0077C0', '#C4CED4'], '76ers': ['#006BB6', '#ED174C'], suns: ['#E56020', '#1D1160'], trailblazers: ['#E03A3E', '#000000'],
+    kings: ['#5A2D81', '#63727A'], spurs: ['#C4CED4', '#000000'], raptors: ['#CE1141', '#000000'], jazz: ['#002B5C', '#F9A01B'], wizards: ['#002B5C', '#E31837'],
+  },
+  football: {
+    cardinals: ['#97233F', '#FFB612'], falcons: ['#A71930', '#000000'], ravens: ['#241773', '#9E7C0C'], bills: ['#00338D', '#C60C30'], panthers: ['#0085CA', '#101820'],
+    bears: ['#0B162A', '#C83803'], bengals: ['#FB4F14', '#000000'], browns: ['#FF3C00', '#311D00'], cowboys: ['#003594', '#869397'], broncos: ['#FB4F14', '#002244'],
+    lions: ['#0076B6', '#B0B7BC'], packers: ['#203731', '#FFB612'], texans: ['#03202F', '#A71930'], colts: ['#002C5F', '#A2AAAD'], jaguars: ['#006778', '#D7A22A'],
+    chiefs: ['#E31837', '#FFB81C'], raiders: ['#000000', '#A5ACAF'], chargers: ['#0080C6', '#FFC20E'], rams: ['#003594', '#FFA300'], dolphins: ['#008E97', '#FC4C02'],
+    vikings: ['#4F2683', '#FFC62F'], patriots: ['#002244', '#C60C30'], saints: ['#D3BC8D', '#101820'], giants: ['#0B2265', '#A71930'], jets: ['#125740', '#FFFFFF'],
+    eagles: ['#004C54', '#A5ACAF'], steelers: ['#FFB612', '#101820'], '49ers': ['#AA0000', '#B3995D'], seahawks: ['#002244', '#69BE28'], buccaneers: ['#D50A0A', '#34302B'],
+    titans: ['#4B92DB', '#0C2340'], commanders: ['#5A1414', '#FFB612'],
+  },
+  baseball: {
+    diamondbacks: ['#A71930', '#E3D4AD'], athletics: ['#003831', '#EFB21E'], braves: ['#CE1141', '#13274F'], orioles: ['#DF4601', '#000000'], redsox: ['#BD3039', '#0C2340'],
+    cubs: ['#0E3386', '#CC3433'], whitesox: ['#27251F', '#C4CED4'], reds: ['#C6011F', '#000000'], guardians: ['#00385D', '#E50022'], rockies: ['#33006F', '#C4CED4'],
+    tigers: ['#0C2340', '#FA4616'], astros: ['#002D62', '#EB6E1F'], royals: ['#004687', '#BD9B60'], angels: ['#BA0021', '#003263'], dodgers: ['#005A9C', '#EF3E42'],
+    marlins: ['#00A3E0', '#EF3340'], brewers: ['#12284B', '#FFC52F'], twins: ['#002B5C', '#D31145'], mets: ['#002D72', '#FF5910'], yankees: ['#0C2340', '#C4CED4'],
+    phillies: ['#E81828', '#002D72'], pirates: ['#FDB827', '#27251F'], padres: ['#FFC425', '#2F241D'], giants: ['#FD5A1E', '#27251F'], mariners: ['#0C2C56', '#005C5C'],
+    cardinals: ['#C41E3A', '#0C2340'], rays: ['#092C5C', '#8FBCE6'], rangers: ['#003278', '#C0111F'], bluejays: ['#134A8E', '#1D2D5C'], nationals: ['#AB0003', '#14225A'],
+  },
+  hockey: {
+    ducks: ['#F47A38', '#B9975B'], utah: ['#6CACE4', '#010101'], bruins: ['#FFB81C', '#000000'], sabres: ['#003087', '#FFB81C'], flames: ['#C8102E', '#F1BE48'],
+    hurricanes: ['#CE1126', '#000000'], blackhawks: ['#CF0A2C', '#000000'], avalanche: ['#6F263D', '#236192'], bluejackets: ['#002654', '#CE1126'], stars: ['#006847', '#8F8F8C'],
+    redwings: ['#CE1126', '#FFFFFF'], oilers: ['#FF4C00', '#041E42'], panthers: ['#C8102E', '#041E42'], kings: ['#A2AAAD', '#111111'], wild: ['#154734', '#A6192E'],
+    canadiens: ['#AF1E2D', '#192168'], predators: ['#FFB81C', '#041E42'], devils: ['#CE1126', '#000000'], islanders: ['#00539B', '#F47D30'], rangers: ['#0038A8', '#CE1126'],
+    senators: ['#C52032', '#C2912C'], flyers: ['#F74902', '#000000'], penguins: ['#FCB514', '#000000'], sharks: ['#006D75', '#EA7200'], kraken: ['#99D9D9', '#001628'],
+    blues: ['#002F87', '#FCB514'], lightning: ['#002868', '#FFFFFF'], mapleleafs: ['#00205B', '#FFFFFF'], canucks: ['#00205B', '#00843D'], goldenknights: ['#B4975A', '#333F42'],
+    capitals: ['#C8102E', '#041E42'], jets: ['#041E42', '#AC162C'],
+  },
+};
+const BRAND_KEYS = Object.fromEntries(Object.entries(BRAND).map(([k, v]) => [k, Object.keys(v).sort((a, b) => b.length - a.length)]));
+const normName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function brand(compOrId, name) {
+  const c = typeof compOrId === 'string' ? BY_ID[compOrId] : compOrId; const sport = c && c.sport;
+  const keys = BRAND_KEYS[sport]; if (!keys) return null;
+  const n = normName(name); const k = keys.find(x => n.includes(x));
+  return k ? BRAND[sport][k] : null;
+}
+
 class SourceError extends Error {}
 
 function makeClient(http, delayMs) {
@@ -160,8 +250,9 @@ function parseEspnEvent(comp, e) {
   const start = Date.parse(e.date || c.date); if (!Number.isFinite(start)) return null;
   const [status, statusText] = espnStatus(e);
   const T = x => { const t = tn(x); const o = team(espnTeamId(comp, t), t.displayName || t.name, { short: t.abbreviation || t.shortDisplayName || '' });
-    if (t.color) o.color = '#' + String(t.color).replace('#', '').slice(0, 6);
-    if (t.alternateColor) o.color2 = '#' + String(t.alternateColor).replace('#', '').slice(0, 6);
+    const b = brand(comp, t.displayName || t.name);
+    if (b) { o.color = b[0]; o.color2 = b[1]; o.brand = true; }
+    else { if (t.color) o.color = '#' + String(t.color).replace('#', '').slice(0, 6); if (t.alternateColor) o.color2 = '#' + String(t.alternateColor).replace('#', '').slice(0, 6); }
     return o; };
   const slug = (e.season || {}).slug;
   const round = comp.kind === 'cup' && slug ? (ROUND_KO[slug] || slug.replace(/-/g, ' ')) : '';
@@ -586,7 +677,7 @@ async function rosterOne(cli, comp, ctx) {
     const j = await cli.json(`${ESPN}/${comp.path}/teams?limit=200`);
     const list = (((j.sports || [])[0] || {}).leagues || [])[0] || {};
     const out = (list.teams || []).map(x => x.team || x).filter(t => t && t.id && !JUNK.test(t.displayName || ''))
-      .map(t => T(espnTeamId(comp, t), t.displayName || t.name, t.abbreviation, t.color ? '#' + t.color : null, t.alternateColor ? '#' + t.alternateColor : null));
+      .map(t => { const b = brand(comp, t.displayName || t.name); return Object.assign(T(espnTeamId(comp, t), t.displayName || t.name, t.abbreviation, b ? b[0] : t.color ? '#' + t.color : null, b ? b[1] : t.alternateColor ? '#' + t.alternateColor : null), b ? { brand: true } : {}); });
     // ESPN 팀 목록에는 하부·해체 팀이 섞일 수 있어 순위표에 있는 팀으로 좁힌다(순위표가 있으면)
     try {
       const st = parseEspnStandings(comp, await cli.json(`${ESPN_ST}/${comp.path}/standings`));
@@ -676,7 +767,7 @@ async function collect(opts) {
   return out;
 }
 
-const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, ROUND_KO,
+const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, ROUND_KO,
   _test: { parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
     wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;

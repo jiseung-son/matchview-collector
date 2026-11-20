@@ -171,6 +171,21 @@ test('roster(): ESPN 팀 목록 + 순위표로 좁히기, 국내는 순위표에
     [/koreabaseball\.com\/Record/, () => FX('kbo_rank.html')],
   ]);
   const r = await C.roster({ http, comps: ['epl', 'kbo'], now: NOW });
-  assert.deepStrictEqual(r.epl.teams.map(t => [t.id, t.color, t.color2]), [['soccer:359', '#e20520', '#ffffff']]);
+  assert.deepStrictEqual(r.epl.teams.map(t => [t.id, t.color, t.color2]), [['soccer:359', '#EF0107', '#FFFFFF']]);
   assert.strictEqual(r.kbo.teams.length, 10);
+});
+
+test('구단 대표색: 공식 색, 비슷한 이름 구분', () => {
+  assert.deepStrictEqual(C.brand('epl', 'Manchester United'), ['#DA291C', '#FBE122']);
+  assert.deepStrictEqual(C.brand('epl', 'Manchester City'), ['#6CABDD', '#1C2C5B']);
+  assert.deepStrictEqual(C.brand('ligue1', 'Paris FC'), ['#1A2A5A', '#FFFFFF']);
+  assert.strictEqual(C.brand('ucl', 'Paris Saint-Germain')[0], '#004170');
+  assert.strictEqual(C.brand('bundesliga', '1. FC Köln')[0], '#ED1C24');
+  assert.strictEqual(C.brand('mlb', 'San Francisco Giants')[0], '#FD5A1E');
+  assert.strictEqual(C.brand('nfl', 'New York Giants')[0], '#0B2265');
+  assert.strictEqual(C.brand('nba', 'Detroit Pistons')[0], '#C8102E');
+  assert.strictEqual(C.brand('mls', 'Sporting Kansas City')[0], '#91B0D5');
+  assert.strictEqual(C.brand('kbo', 'LG'), null);
+  const e = T.parseEspnEvent(C.BY_ID.ucl, FXJ('uefa.champions.json')[0]);
+  assert.ok(e.home.brand || !C.brand('ucl', e.home.name));
 });

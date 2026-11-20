@@ -189,3 +189,38 @@ test('구단 대표색: 공식 색, 비슷한 이름 구분', () => {
   const e = T.parseEspnEvent(C.BY_ID.ucl, FXJ('uefa.champions.json')[0]);
   assert.ok(e.home.brand || !C.brand('ucl', e.home.name));
 });
+
+test('F1: 세션 일정, 팀별 결과, 순위', () => {
+  const now = new Date('2026-11-20T03:00:00Z');
+  const res = new Map(); const r1 = FXJ('f1_res_p1.json').MRData.RaceTable.Races; for (const r of r1) res.set(r.round, r.Results);
+  const evs = T.parseF1Schedule(FXJ('f1_2026.json'), ['f1:ferrari', 'f1:mercedes'], res, new Map(), now);
+  const lv = evs.filter(e => e.title === '라스베이거스 GP');
+  assert.deepStrictEqual(lv.map(e => e.session), ['예선', '결승']);
+  assert.strictEqual(lv[1].start, '2026-11-22T04:00:00Z'); assert.strictEqual(lv[1].status, 'scheduled');
+  assert.ok(lv[1].participants.includes('f1:ferrari'));
+  const au = evs.find(e => e.id === 'f1:2026-1-r');
+  assert.strictEqual(au.status, 'final'); assert.strictEqual(au.results.mercedes[0], 1);
+  assert.ok(evs.some(e => e.session === '스프린트'));
+  const st = T.parseF1Standings(FXJ('f1_cs.json'), FXJ('f1_ds.json'));
+  assert.deepStrictEqual(st.groups.map(g => g.name), ['컨스트럭터', '드라이버']);
+  assert.deepStrictEqual([st.groups[0].rows[0].team_id, st.groups[0].rows[0].name, st.groups[0].rows[0].pts], ['f1:mercedes', '메르세데스', 652]);
+  assert.strictEqual(st.groups[1].rows[0].color_team, 'f1:mercedes');
+  assert.strictEqual(T.gpKo('Bahrain Grand Prix in Malaysia'), '바레인 GP (말레이시아 개최)');
+});
+
+test('collect(): F1 시즌 중 일정·결과 페이지 넘김', async () => {
+  const http = fakeHttp([
+    [/f1\/2026\.json/, () => FX('f1_2026.json')],
+    [/2026\/constructorstandings/, () => FX('f1_cs.json')], [/2026\/driverstandings/, () => FX('f1_ds.json')],
+    [/2026\/constructors\.json/, () => FX('f1_con.json')],
+    [/2026\/results\.json/, req => /offset=0/.test(req.url) ? FX('f1_res_p1.json') : JSON.stringify({ MRData: { total: '440', RaceTable: { Races: [] } } })],
+    [/2026\/sprint\.json/, () => FX('f1_spr_p1.json')],
+  ]);
+  const out = await C.collect({ http, comps: ['f1'], now: NOW, delayMs: 0 });
+  const r = out.comps.f1;
+  assert.ok(r.ok, r.error); assert.ok(!r.offseason);
+  assert.ok(r.events.length > 50); assert.ok(r.standings.groups.length === 2);
+  const ro = await C.roster({ http, comps: ['f1'], now: NOW });
+  assert.strictEqual(ro.f1.teams.length, 11);
+  assert.ok(ro.f1.teams.find(t => t.id === 'f1:ferrari').color === '#E8002D');
+});

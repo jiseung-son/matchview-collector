@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.0.1';
+const VERSION = '2.1.0';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -32,6 +32,7 @@ const COMPETITIONS = [
   C('vleague_m', 'V리그 남자부', { kind: 'league', sport: 'volleyball', group: '국내 프로스포츠', country: '대한민국', src: 'kovo', gender: '1', color: '#1B4F9C' }),
   C('vleague_w', 'V리그 여자부', { kind: 'league', sport: 'volleyball', group: '국내 프로스포츠', country: '대한민국', src: 'kovo', gender: '2', color: '#D6336C' }),
   C('lck', 'LCK', { kind: 'league', sport: 'esports', group: 'e스포츠', country: '대한민국', src: 'lol', slug: 'lck', color: '#C89B3C' }),
+  C('f1', 'F1', { kind: 'league', sport: 'racing', group: '모터스포츠', country: '국제', src: 'f1', color: '#E10600' }),
   // 컵·국제대회 (부모 리그를 고르면 자동 포함, 고른 팀 경기만 표시)
   C('ucl', '챔피언스리그', { kind: 'cup', sport: 'soccer', src: 'espn', path: 'soccer/uefa.champions', parents: SOCCER5, standings: true }),
   C('uel', '유로파리그', { kind: 'cup', sport: 'soccer', src: 'espn', path: 'soccer/uefa.europa', parents: SOCCER5, standings: true }),
@@ -162,6 +163,11 @@ const BRAND = {
     marlins: ['#00A3E0', '#EF3340'], brewers: ['#12284B', '#FFC52F'], twins: ['#002B5C', '#D31145'], mets: ['#002D72', '#FF5910'], yankees: ['#0C2340', '#C4CED4'],
     phillies: ['#E81828', '#002D72'], pirates: ['#FDB827', '#27251F'], padres: ['#FFC425', '#2F241D'], giants: ['#FD5A1E', '#27251F'], mariners: ['#0C2C56', '#005C5C'],
     cardinals: ['#C41E3A', '#0C2340'], rays: ['#092C5C', '#8FBCE6'], rangers: ['#003278', '#C0111F'], bluejays: ['#134A8E', '#1D2D5C'], nationals: ['#AB0003', '#14225A'],
+  },
+  racing: {
+    ferrari: ['#E8002D', '#FFEB00'], mclaren: ['#FF8000', '#47C7FC'], redbull: ['#3671C6', '#CC1E4A'], mercedes: ['#27F4D2', '#000000'],
+    astonmartin: ['#229971', '#CEDC00'], alpine: ['#0093CC', '#FF87BC'], williams: ['#64C4FF', '#041E42'], rb: ['#6692FF', '#FFFFFF'],
+    racingbulls: ['#6692FF', '#FFFFFF'], audi: ['#BB0A30', '#C0C0C0'], sauber: ['#52E252', '#000000'], haas: ['#B6BABD', '#E6002B'], cadillac: ['#C9A35A', '#1A1A1A'],
   },
   hockey: {
     ducks: ['#F47A38', '#B9975B'], utah: ['#6CACE4', '#010101'], bruins: ['#FFB81C', '#000000'], sabres: ['#003087', '#FFB81C'], flames: ['#C8102E', '#F1BE48'],
@@ -670,6 +676,102 @@ function lolStandings(events) {
   return standingsOf(rows, lastYear, '전체');
 }
 
+/* ───────── F1 (api.jolpi.ca, 옛 Ergast) — 팀(컨스트럭터) 단위로 따라간다 ───────── */
+const F1 = 'https://api.jolpi.ca/ergast/f1';
+const F1_TEAM_KO = { ferrari: '페라리', mclaren: '맥라렌', red_bull: '레드불', mercedes: '메르세데스', aston_martin: '애스턴 마틴', alpine: '알핀',
+  williams: '윌리엄스', rb: '레이싱 불스', audi: '아우디', sauber: '자우버', haas: '하스', cadillac: '캐딜락' };
+const F1_DRIVER_KO = { russell: '조지 러셀', antonelli: '키미 안토넬리', leclerc: '샤를 르클레르', hamilton: '루이스 해밀턴', norris: '랜도 노리스',
+  piastri: '오스카 피아스트리', max_verstappen: '막스 페르스타펜', hadjar: '이자크 아자르', lawson: '리암 로슨', arvid_lindblad: '아르비드 린드블라드',
+  gasly: '피에르 가슬리', colapinto: '프랑코 콜라핀토', bearman: '올리버 베어먼', ocon: '에스테반 오콘', bortoleto: '가브리에우 보르툴레투',
+  hulkenberg: '니코 휠켄베르크', alonso: '페르난도 알론소', stroll: '랜스 스트롤', sainz: '카를로스 사인스', albon: '알렉산더 알본',
+  tsunoda: '츠노다 유키', bottas: '발테리 보타스', perez: '세르히오 페레스', ryo_hirakawa: '히라카와 료', rafael_camara: '하파엘 카마라', doohan: '잭 두한' };
+const GP_KO = { australian: '호주', chinese: '중국', japanese: '일본', miami: '마이애미', canadian: '캐나다', monaco: '모나코', barcelona: '바르셀로나',
+  austrian: '오스트리아', british: '영국', belgian: '벨기에', hungarian: '헝가리', dutch: '네덜란드', italian: '이탈리아', spanish: '스페인',
+  azerbaijan: '아제르바이잔', bahrain: '바레인', saudi: '사우디아라비아', singapore: '싱가포르', 'united states': '미국', 'mexico city': '멕시코시티',
+  'são paulo': '상파울루', brazilian: '브라질', 'las vegas': '라스베이거스', qatar: '카타르', 'abu dhabi': '아부다비', 'emilia romagna': '에밀리아로마냐',
+  madrid: '마드리드', portuguese: '포르투갈', turkish: '튀르키예', malaysia: '말레이시아', korean: '한국', 'south african': '남아공', argentine: '아르헨티나' };
+const F1_COUNTRY_KO = { malaysia: '말레이시아', bahrain: '바레인', 'saudi arabia': '사우디아라비아', usa: '미국', qatar: '카타르', uae: '아랍에미리트' };
+function gpKo(raceName) {
+  const name = String(raceName || '');
+  const m = /^(.*?) Grand Prix(?: in (.+))?$/i.exec(name); if (!m) return name;
+  const key = m[1].toLowerCase(); const hit = GP_KO[key] || Object.entries(GP_KO).find(([k]) => key.includes(k))?.[1] || m[1];
+  return `${hit} GP` + (m[2] ? ` (${F1_COUNTRY_KO[m[2].toLowerCase()] || m[2]} 개최)` : '');
+}
+const f1TeamId = c => `f1:${c}`;
+const f1Team = (id, name) => { const b = brand('f1', id.replace(/_/g, '')) || brand('f1', name); return team(f1TeamId(id), F1_TEAM_KO[id] || name, { short: (F1_TEAM_KO[id] || name).slice(0, 3), color: b ? b[0] : null, color2: b ? b[1] : null, brand: !!b }); };
+const F1_SESSIONS = [['SprintQualifying', 'sq', '스프린트 예선'], ['Sprint', 's', '스프린트'], ['Qualifying', 'q', '예선'], [null, 'r', '결승']];
+async function f1Pages(cli, url, key) { // 결과는 한 줄(드라이버) 단위로 100개씩 나뉘어 온다
+  const races = new Map();
+  for (let off = 0, total = 1; off < total && off < 1500; off += 100) {
+    const j = await cli.json(`${url}${url.includes('?') ? '&' : '?'}limit=100&offset=${off}`);
+    const m = j.MRData || {}; total = toInt(m.total) || 0;
+    for (const r of ((m.RaceTable || {}).Races) || []) { const cur = races.get(r.round) || []; races.set(r.round, cur.concat(r[key] || [])); }
+  }
+  return races;
+}
+function f1Best(rows) { // 팀별 최고 순위 2개 (예: {ferrari: [2, 5]})
+  const out = {};
+  for (const x of rows) { const c = (x.Constructor || {}).constructorId; const pos = toInt(x.position); if (!c || pos === null) continue; (out[c] ||= []).push(pos); }
+  for (const k of Object.keys(out)) out[k] = out[k].sort((a, b) => a - b).slice(0, 2);
+  return out;
+}
+function parseF1Schedule(data, teams, results, sprints, now) {
+  const out = [];
+  for (const r of ((data.MRData || {}).RaceTable || {}).Races || []) {
+    const title = gpKo(r.raceName); const loc = (r.Circuit || {}).Location || {};
+    const venue = [(r.Circuit || {}).circuitName, loc.locality].filter(Boolean).join(', ');
+    for (const [key, code, label] of F1_SESSIONS) {
+      const ses = key ? r[key] : { date: r.date, time: r.time }; if (!ses || !ses.date) continue;
+      const tbd = !ses.time; const start = utcIso(Date.parse(`${ses.date}T${ses.time || '00:00:00Z'}`));
+      const res = code === 'r' ? (results.get(r.round) ? f1Best(results.get(r.round)) : null) : code === 's' ? (sprints.get(r.round) ? f1Best(sprints.get(r.round)) : null) : null;
+      const ended = res && Object.keys(res).length > 0 || Date.parse(start) < now.getTime() - (code === 'r' || code === 's' ? 4 : 2) * 3600e3;
+      const status = ended ? 'final' : Date.parse(start) <= now.getTime() ? 'live' : 'scheduled';
+      const pseudo = { id: 'f1:race', name: title, short: 'F1' };
+      out.push(Object.assign(ev('f1', `${r.season}-${r.round}-${code}`, start, tbd, pseudo, Object.assign({}, pseudo, { name: label }), null, null, status,
+        { venue, round: `${r.round}라운드 · ${label}` }), { kind: 'race', title, session: label, participants: teams, results: res }));
+    }
+  }
+  return out;
+}
+function parseF1Standings(cs, ds) {
+  const groups = [];
+  const cl = (((cs.MRData || {}).StandingsTable || {}).StandingsLists || [])[0];
+  if (cl) groups.push({ name: '컨스트럭터', rows: cl.ConstructorStandings.map(x => { const id = x.Constructor.constructorId;
+    return row(f1TeamId(id), F1_TEAM_KO[id] || x.Constructor.name, toInt(x.position), { pts: toNum(x.points), w: toInt(x.wins), gp: null, l: null }); }) });
+  const dl = (((ds.MRData || {}).StandingsTable || {}).StandingsLists || [])[0];
+  if (dl) groups.push({ name: '드라이버', rows: dl.DriverStandings.map(x => { const d = x.Driver; const c = ((x.Constructors || [])[0] || {}).constructorId;
+    return Object.assign(row(`f1d:${d.driverId}`, F1_DRIVER_KO[d.driverId] || `${d.givenName} ${d.familyName}`, toInt(x.position), { pts: toNum(x.points), w: toInt(x.wins), gp: null, l: null }),
+      { color_team: c ? f1TeamId(c) : null, sub: c ? (F1_TEAM_KO[c] || c) : '' }); }) });
+  groups.forEach(g => g.rows.forEach((r, i) => { r.pos = i + 1; }));
+  return groups.length ? { season: (cl || dl).season, groups } : null;
+}
+async function fetchF1(cli, comp, ctx) {
+  const now = ctx.now; const y = now.getUTCFullYear();
+  const cur = await cli.json(`${F1}/${y}.json?limit=100`);
+  const races = ((cur.MRData || {}).RaceTable || {}).Races || [];
+  const last = races.length ? Date.parse(races[races.length - 1].date) + 2 * 86400e3 : 0;
+  let season = y, sched = cur;
+  if (!races.length || last < now.getTime()) { // 시즌 끝: 다음 시즌 일정이 나왔으면 그걸, 아니면 일정 없이 최종 순위만
+    const nx = await cli.json(`${F1}/${y + 1}.json?limit=100`);
+    if ((((nx.MRData || {}).RaceTable || {}).Races || []).length) { season = y + 1; sched = nx; } else sched = null;
+  }
+  const standSeason = races.length ? y : y - 1;
+  const cs = await cli.json(`${F1}/${standSeason}/constructorstandings.json`);
+  const ds = await cli.json(`${F1}/${standSeason}/driverstandings.json`);
+  const standings = parseF1Standings(cs, ds);
+  let events = [];
+  if (sched) {
+    const con = await cli.json(`${F1}/${season}/constructors.json?limit=50`);
+    const teams = ((((con.MRData || {}).ConstructorTable || {}).Constructors) || []).map(c => f1TeamId(c.constructorId));
+    const started = (((sched.MRData || {}).RaceTable || {}).Races || []).some(r => Date.parse(r.date) < now.getTime());
+    const results = started && !ctx.rosterOnly ? await f1Pages(cli, `${F1}/${season}/results.json`, 'Results') : new Map();
+    const sprints = started && !ctx.rosterOnly ? await f1Pages(cli, `${F1}/${season}/sprint.json`, 'SprintResults') : new Map();
+    events = parseF1Schedule(sched, teams, results, sprints, now);
+    ctx.f1Teams = ((((con.MRData || {}).ConstructorTable || {}).Constructors) || []).map(c => f1Team(c.constructorId, c.name));
+  }
+  return { events, standings, offseason: !sched, season: String(season), full: true, window: events.length ? [events[0].start.slice(0, 10), events[events.length - 1].start.slice(0, 10)] : null };
+}
+
 /* ───────── 팀 목록 (첫 실행 때 팀 고르기용, 가볍게) ───────── */
 async function rosterOne(cli, comp, ctx) {
   const T = (id, name, short, color, color2) => ({ id, name, short: short || '', color: color || null, color2: color2 || null });
@@ -685,6 +787,12 @@ async function rosterOne(cli, comp, ctx) {
       if (ids.size >= 4) return out.filter(t => ids.has(t.id));
     } catch (e) { /* 순위표 없으면 전체 */ }
     return out;
+  }
+  if (comp.src === 'f1') {
+    const y = (ctx.now || new Date()).getUTCFullYear();
+    let j = await cli.json(`${F1}/${y}/constructors.json?limit=50`);
+    if (!(((j.MRData || {}).ConstructorTable || {}).Constructors || []).length) j = await cli.json(`${F1}/${y - 1}/constructors.json?limit=50`);
+    return (((j.MRData || {}).ConstructorTable || {}).Constructors || []).map(c => { const t = f1Team(c.constructorId, c.name); return T(t.id, t.name, t.short, t.color, t.color2); });
   }
   if (comp.src === 'lol') {
     const r = await fetchLol(cli, comp, Object.assign({}, ctx, { prevState: null }));
@@ -710,7 +818,7 @@ async function roster(opts) {
 }
 
 /* ───────── 실행 ───────── */
-const FETCHERS = { espn: fetchEspn, kbo: fetchKbo, kleague: fetchKleague, kbl: fetchKbl, wkbl: fetchWkbl, kovo: fetchKovo, lol: fetchLol };
+const FETCHERS = { espn: fetchEspn, kbo: fetchKbo, kleague: fetchKleague, kbl: fetchKbl, wkbl: fetchWkbl, kovo: fetchKovo, lol: fetchLol, f1: fetchF1 };
 
 // 공식 출처가 실패하거나 시즌 중인데 0경기면 네이버로 대체
 async function withNaverFallback(cli, comp, ctx, primary) {
@@ -769,7 +877,7 @@ async function collect(opts) {
 
 const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, ROUND_KO,
   _test: { parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
-    wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
+    wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseF1Schedule, parseF1Standings, gpKo, f1Best, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

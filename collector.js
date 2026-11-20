@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.2.0';
+const VERSION = '2.2.1';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -187,6 +187,38 @@ function brand(compOrId, name) {
   const keys = BRAND_KEYS[sport]; if (!keys) return null;
   const n = normName(name); const k = keys.find(x => n.includes(x));
   return k ? BRAND[sport][k] : null;
+}
+
+
+/* ───────── 홈 유니폼 (배지용): b 몸판 · s 소매 · t 옷깃·소매 끝 · p 무늬 · pc 무늬 색 ─────────
+ * 없으면 몸판 = 대표색, 소매 = 몸판, 테두리 = 보조색. 무늬: stripes·hoops·halves·band·sash·pin·chest(가슴 띠)·diag(대각선 반반) */
+const W_ = '#FFFFFF', K_ = '#1A1A1A';
+const KIT = {
+  soccer: {
+    arsenal: { s: W_, t: W_ }, astonvilla: { s: '#95BFE5' }, westham: { s: '#1BB1E7' }, burnley: { s: '#99D6EA' },
+    tottenham: { b: W_, t: '#132257' }, fulham: { b: W_, t: K_ }, leeds: { b: W_, t: '#1D428A' }, manchesterunited: { t: W_ }, liverpool: { t: W_ },
+    brighton: { p: 'stripes', pc: W_ }, manchestercity: { t: W_ },
+    realmadrid: { b: W_, t: '#FEBE10' }, sevilla: { b: W_, t: '#D81920' }, valencia: { b: W_, t: K_ }, betis: { p: 'stripes', pc: W_ },
+    alaves: { p: 'stripes', pc: W_ }, levante: { b: '#B4053F', p: 'stripes', pc: '#005093' }, valladolid: { p: 'stripes', pc: W_ }, elche: { b: W_, p: 'chest', pc: '#05642C' },
+    lecce: { p: 'stripes', pc: '#D7182A' }, pisa: { p: 'stripes', pc: K_ }, sassuolo: { p: 'stripes', pc: K_ }, cremonese: { p: 'stripes', pc: '#A7A9AC' },
+    venezia: { b: K_, t: '#F37021' }, bayernmunich: { t: W_ }, bayernmunchen: { t: W_ },
+    augsburg: { b: W_, t: '#BA3733' }, hamburg: { b: W_, t: '#E2001A' }, koln: { b: W_, t: '#ED1C24' }, cologne: { b: W_, t: '#ED1C24' },
+    leipzig: { b: W_, t: '#DD0741' }, monchengladbach: { b: W_, t: K_ }, gladbach: { b: W_, t: K_ }, stuttgart: { b: W_, p: 'chest', pc: '#E32219' },
+    angers: { b: K_, p: 'stripes', pc: W_ }, auxerre: { b: W_, t: '#0055A4' }, lehavre: { p: 'halves', pc: '#002C5F' }, lens: { s: '#EC1C24' },
+    lyon: { b: W_, t: '#DA0812' }, marseille: { b: W_, t: '#2FAEE0' }, monaco: { p: 'diag', pc: W_ }, nice: { p: 'stripes', pc: K_ }, rennes: { s: K_ },
+    psv: { p: 'stripes', pc: W_ }, shakhtar: { p: 'stripes', pc: K_ }, salzburg: { b: W_, t: '#D50032' }, celtic: { s: W_ },
+    atlantaunited: { p: 'stripes', pc: K_ }, fcdallas: { p: 'hoops', pc: '#2A4076' }, lagalaxy: { b: W_, p: 'sash', pc: '#00245D' },
+    losangelesfc: { b: K_, t: '#C39E6D' }, lafc: { b: K_, t: '#C39E6D' }, redbulls: { b: W_, t: '#ED1E36' },
+  },
+  baseball: { giants: { b: '#F4EFE2' } }, // 야구 홈 유니폼은 기본이 흰색(아래 kit()에서 처리)
+};
+const KIT_KEYS = Object.fromEntries(Object.entries(KIT).map(([k, v]) => [k, Object.keys(v).sort((a, b) => b.length - a.length)]));
+function kit(compOrId, name) {
+  const c = typeof compOrId === 'string' ? BY_ID[compOrId] : compOrId; const sport = c && c.sport;
+  const keys = KIT_KEYS[sport]; const n = normName(name); const k = keys && keys.find(x => n.includes(x));
+  const o = k ? Object.assign({}, KIT[sport][k]) : {};
+  if (sport === 'baseball' && !o.b) o.b = '#F4F3EE'; // MLB·KBO 홈은 흰색
+  return Object.keys(o).length ? o : null;
 }
 
 class SourceError extends Error {}
@@ -1048,7 +1080,7 @@ async function collect(opts) {
   return out;
 }
 
-const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, detail, ROUND_KO,
+const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, kit, detail, ROUND_KO,
   _test: { parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
     wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseF1Schedule, parseF1Standings, gpKo, f1Best, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;

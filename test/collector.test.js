@@ -1,0 +1,165 @@
+// node --test test/  — 실제 응답 샘플(2026-11 수집)로 파서와 수집 흐름을 검사한다.
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const C = require('../collector.js');
+const T = C._test;
+const FX = p => fs.readFileSync(path.join(__dirname, 'fixtures', p), 'utf8');
+const FXJ = p => JSON.parse(FX(p));
+
+test('KBO 일정: 원정 vs 홈, 점수, 우천취소, 중계 채널', () => {
+  const evs = T.parseKboSchedule(FXJ('kbo_schedule.json'), 2026);
+  assert.ok(evs.length > 100);
+  const g = evs[0];
+  assert.deepStrictEqual([g.away.name, g.home.name, g.away_score, g.home_score, g.status], ['KIA', 'LG', 2, 7, 'final']);
+  assert.strictEqual(g.start, '2026-04-01T09:30:00Z');
+  assert.strictEqual(g.id, 'kbo:20260401HTLG0');
+  assert.ok(g.broadcast.includes('KN-T') && g.broadcast.includes('TVING'), g.broadcast.join());
+  const rain = evs.find(e => e.status_text === '우천취소');
+  assert.ok(rain && rain.status === 'canceled' && rain.home_score === null);
+  assert.strictEqual(new Set(evs.map(e => e.id)).size, evs.length);
+});
+
+test('KBO 순위', () => {
+  const rows = T.parseKboRank(FX('kbo_rank.html'));
+  assert.strictEqual(rows.length, 10);
+  assert.deepStrictEqual([rows[0].name, rows[0].gp, rows[0].w, rows[0].l, rows[0].d, rows[0].pct, rows[0].team_id], ['삼성', 144, 83, 58, 3, 0.589, 'kbo:삼성']);
+});
+
+test('K리그1 일정·순위·중계', () => {
+  const evs = T.parseKleagueSchedule(FXJ('kleague_schedule.json'));
+  assert.strictEqual(evs.length, 22);
+  const fut = evs.filter(e => e.status === 'scheduled'); const last = fut[fut.length - 1];
+  assert.deepStrictEqual([last.home.id, last.away.name, last.start], ['kleague1:K18', '강원', '2026-11-29T07:30:00Z']);
+  assert.ok(evs.some(e => e.broadcast.length));
+  const rows = T.parseKleagueRank(FXJ('kleague_rank.json'));
+  assert.deepStrictEqual([rows[0].team_id, rows[0].pts, rows[0].gd], ['kleague1:K09', 67, 30]);
+});
+
+test('KBL: D리그 제외, 순위 승률', () => {
+  const raw = FXJ('kbl_schedule.json'); const evs = T.parseKblSchedule(raw);
+  assert.ok(evs.length && evs.length < raw.length);
+  const rows = T.parseKblRank(FXJ('kbl_rank.json'));
+  assert.strictEqual(rows[0].team_id, 'kbl:50'); assert.strictEqual(rows[0].pct, 0.667);
+});
+
+test('WKBL: 시즌 목록, 날짜·대진만, 순위', () => {
+  const page = FX('wkbl_schedule.html');
+  assert.deepStrictEqual(T.wkblSeasons(page)[0], ['047', '2026-2027']);
+  const evs = T.parseWkblSchedule(page, 2026, 12);
+  assert.ok(evs.length > 5 && evs.every(e => e.ha_unknown && e.time_tbd));
+  const rows = T.parseWkblRank(FX('wkbl_rank.html'));
+  assert.deepStrictEqual(rows.slice(0, 3).map(r => r.name), ['삼성생명', '신한은행', '우리은행']);
+  assert.deepStrictEqual([rows[0].w, rows[0].l, rows[0].pct], [4, 1, 0.8]);
+});
+
+test('V리그: 일정·중계·순위', () => {
+  const evs = T.parseKovoSchedule(FXJ('kovo_schedule.json'), 'vleague_m');
+  const g = evs[0];
+  assert.deepStrictEqual([g.home.name, g.away.name, g.home_score, g.away_score, g.status, g.start], ['대한항공', '현대캐피탈', 3, 0, 'final', '2026-10-31T05:00:00Z']);
+  assert.ok(g.broadcast.includes('SBS Sports'), g.broadcast.join());
+  assert.strictEqual(evs[evs.length - 1].status, 'scheduled');
+  const rows = T.parseKovoRank(FXJ('kovo_rank.json'), 'vleague_m');
+  assert.deepStrictEqual([rows[0].team_id, rows[0].pts, rows[0].w], ['vleague_m:1005', 12, 4]);
+});
+
+test('ESPN 컵대회: 라운드 한국어, 축구 팀 id는 대회 공통', () => {
+  const comp = C.BY_ID.fa_cup;
+  const e = T.parseEspnEvent(comp, FXJ('eng.fa.json')[0]);
+  assert.strictEqual(e.round, '1라운드');
+  assert.ok(e.home.id.startsWith('soccer:'));
+  const u = T.parseEspnEvent(C.BY_ID.ucl, FXJ('uefa.champions.json')[0]);
+  assert.strictEqual(u.round, '리그 페이즈');
+  assert.ok(u.home.color && u.home.color.startsWith('#'));
+});
+
+test('LoL: 경기 파싱과 LCK 순위 계산', () => {
+  const s = FXJ('lol_lck_schedule.json');
+  const evs = s.events.map(e => T.parseLolEvent(C.BY_ID.lck, e)).filter(Boolean);
+  assert.ok(evs.length > 50);
+  const fin = evs[evs.length - 1];
+  assert.strictEqual(fin.round, '결승');
+  assert.deepStrictEqual([fin.home.id, fin.home_score, fin.away_score, fin.bo], ['lol:GEN', 3, 1, 5]);
+  const st = T.lolStandings(evs);
+  assert.ok(st && st.groups[0].rows.length >= 8, 'LCK 순위 팀 수');
+  const r = st.groups[0].rows[0]; assert.ok(r.w >= r.l);
+});
+
+test('네이버 보완: WKBL 시각·홈/원정 채우기', async () => {
+  const evs = T.parseWkblSchedule(FX('wkbl_schedule.html'), 2026, 12);
+  const g = evs.find(e => e.status === 'scheduled');
+  const day = new Date(Date.parse(g.start) + 9 * 3600e3).toISOString().slice(0, 10);
+  const naver = { result: { games: [{ categoryId: 'wkbl', gameId: 'X1', gameDate: day, gameDateTime: `${day}T19:00:00`, homeTeamName: g.away.name, awayTeamName: g.home.name, stadium: '청주체육관' }] } };
+  const cli = { json: async () => naver };
+  const out = await T.enrichFromNaver(cli, C.BY_ID.wkbl, evs, new Date(Date.UTC(2026, 11, 1)), new Date(Date.UTC(2026, 11, 31)));
+  const h = out.find(e => e.id === g.id);
+  assert.strictEqual(h.time_tbd, false); assert.strictEqual(h.ha_unknown, false);
+  assert.strictEqual(h.home.name, g.away.name); // 네이버 기준으로 홈 교정
+  assert.strictEqual(new Date(h.start).getUTCHours(), 10); // 19:00 KST
+});
+
+// ───── 전체 흐름: 가짜 http ─────
+function fakeHttp(routes, log) {
+  return async (req) => {
+    log && log.push(req.url);
+    for (const [re, fn] of routes) if (re.test(req.url)) { const r = await fn(req); return typeof r === 'string' ? { status: 200, text: r } : r; }
+    return { status: 404, text: '' };
+  };
+}
+const NOW = new Date('2026-11-20T03:00:00Z');
+const espnEvent = (id, date, h, a, extra) => ({ id, date, season: { slug: 'regular-season' }, status: { type: { name: 'STATUS_SCHEDULED', state: 'pre' } },
+  competitions: [{ venue: { fullName: 'X' }, competitors: [{ homeAway: 'home', team: { id: h, displayName: 'T' + h, abbreviation: 'T' + h, color: 'ff0000' } }, { homeAway: 'away', team: { id: a, displayName: 'T' + a, abbreviation: 'T' + a } }] }], ...extra });
+
+test('collect(): 리그+컵 자동 포함, 컵은 고른 리그 팀만, KBO 비시즌은 순위만', async () => {
+  const log = [];
+  const http = fakeHttp([
+    [/eng\.1\/scoreboard$/, () => JSON.stringify({ leagues: [{ season: { startDate: '2026-08-01T00:00Z', endDate: '2027-06-01T00:00Z', displayName: '2026-27' }, calendar: ['2026-11-22T00:00Z', '2027-05-30T00:00Z'] }] })],
+    [/eng\.1\/scoreboard\?dates=/, req => JSON.stringify({ events: req.url.includes('dates=202611') ? [espnEvent('1', '2026-11-22T15:00Z', '359', '364')] : [] })],
+    [/eng\.1\/standings/, () => JSON.stringify({ children: [{ name: 'PL', standings: { entries: [{ team: { id: '359', displayName: 'Arsenal' }, stats: [{ name: 'points', value: 29 }, { name: 'gamesPlayed', value: 12 }] }] } }] })],
+    [/uefa\.champions\/scoreboard$/, () => JSON.stringify({ leagues: [{ season: { startDate: '2026-07-01T00:00Z', endDate: '2027-07-01T00:00Z' }, calendar: ['2026-11-25T00:00Z'] }] })],
+    [/uefa\.champions\/scoreboard\?dates=/, () => JSON.stringify({ events: [espnEvent('u1', '2026-11-25T20:00Z', '359', '999'), espnEvent('u2', '2026-11-25T20:00Z', '888', '777')] })],
+    [/uefa\.champions\/standings/, () => JSON.stringify({ children: [{ name: 'League Phase', standings: { entries: [{ team: { id: '359', displayName: 'Arsenal' }, stats: [{ name: 'points', value: 12 }] }] } }] })],
+    [/scoreboard$/, () => JSON.stringify({ leagues: [{ season: { startDate: '2025-07-01T00:00Z', endDate: '2026-07-01T00:00Z' } }] })], // 나머지 컵: 시즌 종료
+    [/standings/, () => ({ status: 404, text: '' })],
+    [/koreabaseball\.com\/Record/, () => FX('kbo_rank.html')],
+    [/getLeagues/, () => JSON.stringify({ data: { leagues: [{ slug: 'lck', id: '1' }, { slug: 'msi', id: '2' }] } })],
+    [/getSchedule\?hl=ko-KR&leagueId=1/, () => JSON.stringify({ data: { schedule: { events: FXJ('lol_lck_schedule.json').events, pages: {} } } })],
+    [/getSchedule\?hl=ko-KR&leagueId=2/, () => JSON.stringify({ data: { schedule: { events: [
+      { startTime: '2026-06-01T10:00:00Z', state: 'completed', type: 'match', blockName: '결승', league: { name: 'MSI' }, match: { id: 'm1', teams: [{ name: 'Gen.G', code: 'GEN', result: { gameWins: 3 } }, { name: 'X', code: 'XX', result: { gameWins: 1 } }], strategy: { count: 5 } } },
+      { startTime: '2026-06-01T10:00:00Z', state: 'completed', type: 'match', blockName: '결승', league: { name: 'MSI' }, match: { id: 'm2', teams: [{ name: 'A', code: 'AA' }, { name: 'B', code: 'BB' }] } }], pages: {} } } })],
+  ], log);
+  const out = await C.collect({ http, comps: ['epl', 'kbo', 'lck'], now: NOW, delayMs: 0 });
+  assert.ok(out.comps.epl.ok && out.comps.epl.events.length === 1);
+  assert.strictEqual(out.comps.epl.events[0].home.id, 'soccer:359');
+  assert.ok(out.comps.ucl.ok);
+  assert.deepStrictEqual(out.comps.ucl.events.map(e => e.id), ['ucl:u1']); // 아스널 경기만 남음
+  assert.ok(out.comps.ucl.standings);
+  assert.ok(out.comps.fa_cup.offseason);
+  assert.ok(out.comps.kbo.offseason && !out.comps.kbo.events.length && out.comps.kbo.standings.groups[0].rows.length === 10);
+  assert.ok(!log.some(u => u.includes('GetScheduleList')), 'KBO 비시즌엔 일정 요청 안 함');
+  assert.ok(out.comps.lck.events.length > 50 && out.comps.lck.standings);
+  assert.deepStrictEqual(out.comps.lol_msi.events.map(e => e.id), ['lol_msi:m1']); // LCK 팀 경기만
+  assert.ok(out.state.comps.epl.lastFull);
+  assert.deepStrictEqual(out.comps.epl.window.length, 2);
+});
+
+test('collect(): 공식 출처 실패 → 네이버로 대체', async () => {
+  const day = '2026-11-22';
+  const http = fakeHttp([
+    [/api\.kbl\.or\.kr/, () => ({ status: 500, text: '' })],
+    [/api-gw\.sports\.naver\.com/, req => JSON.stringify({ result: { games: req.url.includes('fromDate=2026-11') ? [{ categoryId: 'kbl', gameId: 'G1', gameDate: day, gameDateTime: `${day}T14:00:00`, homeTeamName: '서울 삼성', awayTeamName: '창원 LG', homeTeamCode: '35', awayTeamCode: '50', statusCode: 'BEFORE' }] : [] } })],
+  ]);
+  const out = await C.collect({ http, comps: ['kbl'], now: NOW, delayMs: 0, knownTeams: { 'kbl:35': { comp: 'kbl', name: '서울 삼성' } } });
+  assert.ok(out.comps.kbl.ok, out.comps.kbl.error);
+  assert.strictEqual(out.comps.kbl.source, 'naver');
+  assert.strictEqual(out.comps.kbl.events[0].home.id, 'kbl:35'); // 이름으로 기존 팀 id에 연결
+  assert.strictEqual(out.comps.kbl.events[0].start, '2026-11-22T05:00:00Z');
+});
+
+test('collect(): 한 대회 실패해도 나머지는 계속', async () => {
+  const http = fakeHttp([[/koreabaseball/, () => ({ status: 500, text: '' })], [/api-gw\.sports\.naver/, () => ({ status: 500, text: '' })]]);
+  const out = await C.collect({ http, comps: ['kbo', 'mlb'], now: NOW, delayMs: 0 });
+  assert.strictEqual(out.comps.kbo.ok, false);
+  assert.ok('mlb' in out.comps);
+});

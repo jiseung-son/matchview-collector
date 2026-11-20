@@ -1,0 +1,20 @@
+name: 수집 코드 점검
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 0 * * 1"   # 매주 월요일 09:17 KST
+  push:
+    paths: ["collector.js", "tools/healthcheck.js", ".github/workflows/healthcheck.yml"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test test/collector.test.js
+      - run: node tools/healthcheck.js
+      - if: always()
+        run: echo "BEGIN_SAMPLE" && gzip -c sample.json | base64 -w0 && echo && echo "END_SAMPLE"

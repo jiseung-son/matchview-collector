@@ -18,3 +18,5 @@ jobs:
       - run: node tools/healthcheck.js
       - if: always()
         run: echo "BEGIN_SAMPLE" && gzip -c sample.json | base64 -w0 && echo && echo "END_SAMPLE"
+      - if: always()
+        run: test -f rosters.json && echo "BEGIN_ROSTERS" && gzip -c rosters.json | base64 -w0 && echo && echo "END_ROSTERS" || true

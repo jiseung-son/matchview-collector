@@ -259,3 +259,10 @@ test('ESPN 순위: 승점·경기수·득실 등 기록이 남는다 (이름 겹
   const r = C._test.parseEspnStandings(C.BY_ID.epl, d).groups[0].rows[0];
   assert.deepStrictEqual([r.rank, r.gp, r.w, r.d, r.l, r.pts, r.gf, r.ga, r.gd], [1, 12, 9, 2, 1, 29, 25, 8, 17]);
 });
+
+test('collector.js 안에 같은 이름의 함수가 두 번 있지 않다', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'collector.js'), 'utf8');
+  const seen = {};
+  for (const m of src.matchAll(/^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)) seen[m[1]] = (seen[m[1]] || 0) + 1;
+  assert.deepStrictEqual(Object.entries(seen).filter(([, n]) => n > 1), []);
+});

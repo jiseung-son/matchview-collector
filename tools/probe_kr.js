@@ -5,12 +5,13 @@ const keys = (t) => { try { const j = JSON.parse(t); const walk = (o, d = 0) => 
 const line = (name, r) => console.log(`${name} | ${r.s} | ${keys(r.t).slice(0, 600)}`);
 (async () => {
   // 1) ESPN: K리그1(kor.1)·KBO
-  for (const sl of ['soccer/kor.1', 'baseball/kbo', 'basketball/kbl']) {
-    const sb = await get(`https://site.api.espn.com/apis/site/v2/sports/${sl}/scoreboard?dates=20261101-20261122`); line('ESPN ' + sl + ' scoreboard', sb);
+  for (const [sl, q] of [['soccer/kor.1', ''], ['soccer/kor.1', '?dates=20261122'], ['soccer/kor.1', '?dates=20261108'], ['soccer/eng.1', '?dates=20261122'], ['baseball/kbo', '']]) {
+    const sb = await get(`https://site.api.espn.com/apis/site/v2/sports/${sl}/scoreboard${q}`); line('ESPN ' + sl + q, sb); if (sb.s !== 200) console.log('  msg', sb.t.slice(0, 160));
     try { const evs = JSON.parse(sb.t).events || []; const done = evs.filter(e => e.status?.type?.completed); console.log('  events', evs.length, 'completed', done.length);
       if (done[0]) { const s = await get(`https://site.api.espn.com/apis/site/v2/sports/${sl}/summary?event=${done.at(-1).id}`); line('  summary ' + done.at(-1).id, s);
         try { const j = JSON.parse(s.t); for (const r of j.rosters || []) console.log('  roster', r.homeAway, r.formation, (r.roster || []).filter(x => x.starter).map(x => `${x.formationPlace}:${x.position?.abbreviation}:${x.athlete?.shortName}`).join(' ')); console.log('  keyEvents', (j.keyEvents || []).length, 'commentary', (j.commentary || []).length, 'boxscore teams stats', (j.boxscore?.teams?.[0]?.statistics || []).length); } catch {} } } catch {}
   }
+  return;
   // 2) 네이버 (국내 IP만 응답할 수 있음)
   const nv = await get('https://api-gw.sports.naver.com/schedule/games?fields=basic&upperCategoryId=kfootball&fromDate=2026-11-01&toDate=2026-11-22&size=50', { Referer: 'https://m.sports.naver.com/' }); line('NAVER schedule', nv);
   // 3) LoL e스포츠 (LCK)

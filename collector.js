@@ -517,7 +517,12 @@ async function fetchKbl(cli, comp, ctx) {
   return { events, standings: standingsOf(parseKblRank(rank), ''), offseason, season: '', full: true };
 }
 
-/* ───────── WKBL (wkbl.or.kr) — 일정표에 시각·홈/원정이 없어 네이버로 보완 ───────── */
+/* ───────── WKBL (wkbl.or.kr) ─────────
+ * 주 출처: 모바일 일정 /m/game/schedule.asp?sch_ym=YYYYMM
+ *   - 앞으로 할 경기: 경기장·시각이 있음 ("아산<br />19:00")
+ *   - 먼저 나오는 팀이 홈 팀 (2026-11 20경기 경기장과 대조해 확인)
+ *   - 끝난 경기는 시각이 없어 날짜만 (네이버로 보완)
+ * 예비: PC 달력 /game/sch/schedule1.asp (홈/원정·시각 없음) */
 const WKBL_TEAMS = ['삼성생명', '신한은행', '우리은행', '하나은행', 'BNK 썸', 'KB스타즈'];
 function wkblSeasons(page) { const m = /<select name="season_gu"[\s\S]*?<\/select>/.exec(page); return m ? [...m[0].matchAll(/<option value="(\d{3})"[^>]*>([^<]+)/g)].map(x => [x[1], x[2].trim()]) : []; }
 function parseWkblSchedule(page, y, m) {
@@ -532,6 +537,20 @@ function parseWkblSchedule(page, y, m) {
       out.push(ev('wkbl', gno ? `${y}${pad(m)}-${gno}` : `${y}${pad(m)}${pad(+dm[1])}-${gi}`, start, true, team(`wkbl:${names[0]}`, names[0]), team(`wkbl:${names[1]}`, names[1]),
         sc.length === 2 ? sc[0] : null, sc.length === 2 ? sc[1] : null, sc.length === 2 ? 'final' : 'scheduled', { ha_unknown: true }));
     });
+  }
+  return out;
+}
+function parseWkblMobile(page, y, m) {
+  const out = []; const perDay = {};
+  for (const li of page.split(/<li>\s*<a /).slice(1)) {
+    const dm = /class="date">(\d{1,2})\.(\d{1,2})</.exec(li); if (!dm || +dm[1] !== m) continue;
+    const d = +dm[2]; const gi = perDay[d] = (perDay[d] ?? -1) + 1;
+    const names = [...li.matchAll(/class="team_name">([^<]+)</g)].map(x => x[1].trim()); if (names.length < 2) continue;
+    const sc = [...li.matchAll(/<em>(\d+)<\/em>/g)].map(x => +x[1]); const gno = (/game_no=(\d+)/.exec(li) || [])[1];
+    const pl = /class="place_block">[\s\S]*?<span>([^<]*)<br\s*\/?>\s*(\d{1,2}:\d{2})/.exec(li);
+    const [start, tbd] = kstIso(y, m, d, pl ? pl[2] : null);
+    out.push(ev('wkbl', gno ? `${y}${pad(m)}-${gno}` : `${y}${pad(m)}${pad(d)}-${gi}`, start, tbd, team(`wkbl:${names[0]}`, names[0]), team(`wkbl:${names[1]}`, names[1]),
+      sc.length === 2 ? sc[0] : null, sc.length === 2 ? sc[1] : null, sc.length === 2 ? 'final' : 'scheduled', { venue: pl ? pl[1].trim() : '' }));
   }
   return out;
 }
@@ -555,10 +574,15 @@ async function fetchWkbl(cli, comp, ctx) {
     const from = addDays(now, ctx.prevState?.lastFull ? -14 : -120), to = addDays(now, 150);
     for (const [y, m] of monthsBetween(from, to)) {
       if (m >= 5 && m <= 9) continue;
-      const page = await cli.text(`https://www.wkbl.or.kr/game/sch/schedule1.asp?season_gu=${seasons[0][0]}&ym=${y}${pad(m)}&gun=1`);
-      const sel = (/<option value="(\d{6})"\s*selected/.exec(page) || [])[1];
-      if (sel && sel !== `${y}${pad(m)}`) continue;
-      events.push(...parseWkblSchedule(page, y, m));
+      let got = [];
+      try { got = parseWkblMobile(await cli.text(`https://www.wkbl.or.kr/m/game/schedule.asp?sch_ym=${y}${pad(m)}`), y, m); } catch (e) { /* 아래 예비 출처로 */ }
+      if (!got.length) {
+        const page = await cli.text(`https://www.wkbl.or.kr/game/sch/schedule1.asp?season_gu=${seasons[0][0]}&ym=${y}${pad(m)}&gun=1`);
+        const sel = (/<option value="(\d{6})"\s*selected/.exec(page) || [])[1];
+        if (sel && sel !== `${y}${pad(m)}`) continue;
+        got = parseWkblSchedule(page, y, m);
+      }
+      events.push(...got);
     }
     try { events = await enrichFromNaver(cli, comp, events, from, to); } catch (e) { /* 보완 실패해도 공식 일정은 유지 */ }
   }
@@ -1081,7 +1105,7 @@ async function collect(opts) {
 }
 
 const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, kit, detail, ROUND_KO,
-  _test: { parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
+  _test: { parseWkblMobile, parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
     wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseF1Schedule, parseF1Standings, gpKo, f1Best, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

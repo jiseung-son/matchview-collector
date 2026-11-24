@@ -266,3 +266,14 @@ test('collector.js 안에 같은 이름의 함수가 두 번 있지 않다', () 
   for (const m of src.matchAll(/^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)) seen[m[1]] = (seen[m[1]] || 0) + 1;
   assert.deepStrictEqual(Object.entries(seen).filter(([, n]) => n > 1), []);
 });
+
+test('WKBL 모바일 일정: 앞으로 할 경기는 시각·경기장, 먼저 나온 팀이 홈', () => {
+  const page = fs.readFileSync(path.join(__dirname, 'fixtures', 'wkbl', 'mobile_schedule_202611.html'), 'utf8');
+  const ev = C._test.parseWkblMobile(page, 2026, 11);
+  assert.strictEqual(ev.length, 2); // 다른 달(12.01) 칸은 건너뜀
+  const [done, next] = ev;
+  assert.strictEqual(done.status, 'final'); assert.strictEqual(done.home.name, '신한은행');
+  assert.strictEqual(next.status, 'scheduled'); assert.strictEqual(next.home.name, '우리은행'); assert.strictEqual(next.venue, '아산');
+  assert.strictEqual(next.start || next.date, '2026-11-25T10:00:00Z'); // 19:00 KST
+  assert.ok(!next.ha_unknown);
+});

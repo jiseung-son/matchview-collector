@@ -1,27 +1,19 @@
-// 국내 리그 경기 상세(라인업·기록) 출처 조사용 일회성 스크립트
+// 일회성 조사: WKBL 공식 사이트에서 경기 시각·홈/원정 찾기
 const UA = { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36' };
-const get = async (u, h = {}) => { try { const r = await fetch(u, { headers: { ...UA, ...h } }); const t = await r.text(); return { s: r.status, t }; } catch (e) { return { s: 'ERR ' + e.message, t: '' }; } };
-const keys = (t) => { try { const j = JSON.parse(t); const walk = (o, d = 0) => o && typeof o === 'object' && d < 2 ? Object.keys(o).slice(0, 14).map(k => k + (typeof o[k] === 'object' && o[k] ? '{' + walk(o[k], d + 1) + '}' : '')).join(',') : ''; return walk(j); } catch { return 'non-json ' + t.slice(0, 120).replace(/\s+/g, ' '); } };
-const line = (name, r) => console.log(`${name} | ${r.s} | ${keys(r.t).slice(0, 600)}`);
+const get = async (u, o = {}) => { try { const r = await fetch(u, { ...o, headers: { ...UA, ...(o.headers || {}) } }); return { s: r.status, t: await r.text() }; } catch (e) { return { s: 'ERR ' + e.message, t: '' }; } };
+const clean = s => s.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '').replace(/\s+/g, ' ');
 (async () => {
-  // 1) ESPN: K리그1(kor.1)·KBO
-  for (const [sl, q] of [['soccer/kor.1', ''], ['soccer/kor.1', '?dates=20261122'], ['soccer/kor.1', '?dates=20261108'], ['soccer/eng.1', '?dates=20261122'], ['baseball/kbo', '']]) {
-    const sb = await get(`https://site.api.espn.com/apis/site/v2/sports/${sl}/scoreboard${q}`); line('ESPN ' + sl + q, sb); if (sb.s !== 200) console.log('  msg', sb.t.slice(0, 160));
-    try { const evs = JSON.parse(sb.t).events || []; const done = evs.filter(e => e.status?.type?.completed); console.log('  events', evs.length, 'completed', done.length);
-      if (done[0]) { const s = await get(`https://site.api.espn.com/apis/site/v2/sports/${sl}/summary?event=${done.at(-1).id}`); line('  summary ' + done.at(-1).id, s);
-        try { const j = JSON.parse(s.t); for (const r of j.rosters || []) console.log('  roster', r.homeAway, r.formation, (r.roster || []).filter(x => x.starter).map(x => `${x.formationPlace}:${x.position?.abbreviation}:${x.athlete?.shortName}`).join(' ')); console.log('  keyEvents', (j.keyEvents || []).length, 'commentary', (j.commentary || []).length, 'boxscore teams stats', (j.boxscore?.teams?.[0]?.statistics || []).length); } catch {} } } catch {}
+  const sch = await get('https://www.wkbl.or.kr/game/sch/schedule1.asp?ym=202611&gun=1');
+  console.log('SCHEDULE1', sch.s, sch.t.length);
+  const blk = sch.t.split('<div class="info_game">')[1] || ''; console.log('BLOCK', clean(blk.slice(0, 1500)));
+  const hrefs = [...new Set([...sch.t.matchAll(/(?:href|location\.href)\s*=\s*["']([^"']*(?:game|sch|result|record)[^"']*)["']/gi)].map(m => m[1]))]; console.log('HREFS', hrefs.slice(0, 40).join('\n  '));
+  const onclick = [...new Set([...sch.t.matchAll(/onclick="([^"]{0,160})"/gi)].map(m => m[1]))]; console.log('ONCLICK', onclick.slice(0, 15).join('\n  '));
+  const times = [...new Set([...clean(sch.t).matchAll(/\d{1,2}:\d{2}/g)].map(m => m[0]))]; console.log('TIMES in schedule1', times.slice(0, 20).join(' '));
+  for (const u of ['https://www.wkbl.or.kr/game/sch/schedule2.asp?ym=202611&gun=1', 'https://www.wkbl.or.kr/game/sch/schedule3.asp', 'https://www.wkbl.or.kr/game/sch/schedule.asp', 'https://www.wkbl.or.kr/main/main.asp', 'https://www.wkbl.or.kr/', 'https://m.wkbl.or.kr/', 'https://www.wkbl.or.kr/game/result.asp']) {
+    const r = await get(u); const c = clean(r.t);
+    const t = [...new Set([...c.matchAll(/\d{1,2}:\d{2}/g)].map(m => m[0]))];
+    console.log('PAGE', u, r.s, r.t.length, 'times:', t.slice(0, 12).join(' '));
+    const i = c.search(/\d{2}:\d{2}/); if (i > 0) console.log('   ctx:', c.slice(Math.max(0, i - 400), i + 300));
   }
-  return;
-  // 2) 네이버 (국내 IP만 응답할 수 있음)
-  const nv = await get('https://api-gw.sports.naver.com/schedule/games?fields=basic&upperCategoryId=kfootball&fromDate=2026-11-01&toDate=2026-11-22&size=50', { Referer: 'https://m.sports.naver.com/' }); line('NAVER schedule', nv);
-  // 3) LoL e스포츠 (LCK)
-  const LH = { 'x-api-key': '0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z' };
-  const sch = await get('https://esports-api.lolesports.com/persisted/gw/getSchedule?hl=ko-KR&leagueId=98767991310872058', LH); line('LOL schedule', sch);
-  try { const ev = (JSON.parse(sch.t).data.schedule.events || []).filter(e => e.state === 'completed' && e.match).at(-1);
-    if (ev) { const d = await get(`https://esports-api.lolesports.com/persisted/gw/getEventDetails?hl=ko-KR&id=${ev.match.id}`, LH); line('LOL eventDetails', d);
-      const gid = (JSON.parse(d.t).data.event.match.games || []).find(g => g.state === 'completed')?.id; console.log('  gameId', gid);
-      if (gid) { const w = await get(`https://feed.lolesports.com/livestats/v1/window/${gid}`); line('LOL livestats window', w); const dt = await get(`https://feed.lolesports.com/livestats/v1/details/${gid}`); line('LOL livestats details', dt); } } } catch (e) { console.log('LOL err', e.message); }
-  // 4) 공식 사이트 첫 화면 응답 여부 (해외에서 열리는지)
-  for (const u of ['https://www.koreabaseball.com/Schedule/GameCenter/Main.aspx', 'https://www.kleague.com/match.do', 'https://data.kleague.com/', 'https://api.kbl.or.kr/match/list?fromDate=20261101&toDate=20261122', 'https://www.wkbl.or.kr/game/result.asp', 'https://kovo.co.kr/'])
-    { const r = await get(u); console.log(`SITE ${u} | ${r.s} | ${r.t.length}B`); }
+  const gl = hrefs.find(h => /game_no=/.test(h)); if (gl) { const u = new URL(gl.replace(/&amp;/g, '&'), 'https://www.wkbl.or.kr/game/sch/'); const r = await get(u.href); const c = clean(r.t); console.log('GAMEPAGE', u.href, r.s, r.t.length); const i = c.search(/\d{2}:\d{2}/); console.log('   ctx:', c.slice(Math.max(0, i - 500), i + 500)); }
 })();

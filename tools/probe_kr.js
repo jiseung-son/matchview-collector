@@ -1,8 +1,9 @@
-const UA = { 'User-Agent': 'Mozilla/5.0' };
+const C = require('../collector.js');
+const http = async ({ url, method, headers, body }) => { const r = await fetch(url, { method, headers: { 'User-Agent': 'Mozilla/5.0', ...headers }, body }); return { status: r.status, text: await r.text() }; };
 (async () => {
-  for (const d of ['20260910', '20261125', '20261126', '20261225', '20261129']) {
-    const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${d}`, { headers: UA }); const j = await r.json();
-    for (const e of j.events || []) { const c = e.competitions[0];
-      console.log('NFL', d, e.id, e.shortName, '| broadcasts', JSON.stringify((c.broadcasts || []).map(b => b.names)), '| geo', JSON.stringify((c.geoBroadcasts || []).map(g => [g.type && g.type.shortName, g.market && g.market.type, g.media && g.media.shortName]))); }
-  }
-})();
+  const out = await C.collect({ http, comps: ['nfl'], now: new Date() });
+  const r = out.comps.nfl; console.log('NFLOK', r.ok, r.events.length, r.error || '');
+  const nf = r.events.filter(e => (e.net || []).includes('Netflix'));
+  for (const e of nf) console.log('NETFLIX', e.id, e.start, e.away.name, '@', e.home.name, JSON.stringify(e.net));
+  console.log('WITHNET', r.events.filter(e => e.net && e.net.length).length, 'of', r.events.length);
+})().catch(e => console.log('ERR', e.stack));

@@ -8,7 +8,7 @@
  */
 (function (root) {
 'use strict';
-const VERSION = '2.2.2';
+const VERSION = '2.4.0';
 
 /* ───────── 대회 설정 ───────── */
 // kind: league(사용자가 고르는 리그) | cup(부모 리그 팀이 나오는 대회, 자동 포함)
@@ -296,7 +296,13 @@ function parseEspnEvent(comp, e) {
   const slug = (e.season || {}).slug;
   const round = comp.kind === 'cup' && slug ? (ROUND_KO[slug] || slug.replace(/-/g, ' ')) : '';
   return ev(comp.id, e.id, utcIso(start), c.timeValid === false, T(H), T(A), toInt(H.score), toInt(A.score), status,
-    { venue: (c.venue || e.venue || {}).fullName || '', status_text: statusText, round });
+    { venue: (c.venue || e.venue || {}).fullName || '', status_text: statusText, round, net: espnNational(c) });
+}
+// 미국 전국 중계사 이름 (예: ['Netflix'], ['CBS']). 앱이 중계 정보의 규칙과 맞춰 본다 — 넷플릭스 NFL 경기는 전 세계 생중계
+function espnNational(c) {
+  const geo = (c.geoBroadcasts || []).filter(g => !g.market || !g.market.type || g.market.type === 'National').map(g => (g.media || {}).shortName).filter(Boolean);
+  const names = geo.length ? geo : (c.broadcasts || []).flatMap(b => b.names || []);
+  return [...new Set(names.map(n => String(n).trim()).filter(Boolean))].slice(0, 6);
 }
 async function espnSeason(cli, comp) {
   const j = await cli.json(`${ESPN}/${comp.path}/scoreboard`);
@@ -1105,7 +1111,7 @@ async function collect(opts) {
 }
 
 const API = { VERSION, API_LEVEL: 2, COMPETITIONS, BY_ID, collect, roster, brand, kit, detail, ROUND_KO,
-  _test: { parseWkblMobile, parseEspnEvent, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
+  _test: { parseWkblMobile, parseEspnEvent, espnNational, parseEspnStandings, espnRange, parseKboSchedule, parseKboRank, parseKleagueSchedule, parseKleagueRank, parseKblSchedule, parseKblRank,
     wkblSeasons, parseWkblSchedule, parseWkblRank, parseKovoSchedule, parseKovoRank, parseLolEvent, lolStandings, parseF1Schedule, parseF1Standings, gpKo, f1Best, parseNaverGame, enrichFromNaver, kstIso, monthsBetween } };
 root.MVCollector = API;
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
